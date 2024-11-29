@@ -6,6 +6,7 @@ Features
 - Modern Design: A fresh, techy, and developer-first design with a theme that aligns with Costco Travel branding.
 
 ## Project Structure
+```md
 QAMetricMonitor/
 ├── app/
 │   ├── api/
@@ -49,3 +50,4 @@ QAMetricMonitor/
 ├── package.json
 ├── README.md
 └── tsconfig.json
+```
