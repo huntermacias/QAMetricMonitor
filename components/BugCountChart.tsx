@@ -13,7 +13,6 @@ import {
   Legend,
   ResponsiveContainer,
 } from 'recharts';
-
 import {
   Card,
   CardContent,
@@ -23,15 +22,19 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { TrendingUp } from 'lucide-react';
+import Skeleton from 'react-loading-skeleton';
+import 'react-loading-skeleton/dist/skeleton.css';
+import { ChartContainer } from './ui/chart';
 
+// Updated color palette for dark theme
 const chartConfig = {
   openBugs: {
     label: 'Open Bugs',
-    color: 'hsl(var(--chart-1))',
+    color: '#FF4C4C', // Bright Red
   },
   closedBugs: {
     label: 'Closed Bugs',
-    color: 'hsl(var(--chart-2))',
+    color: '#4CAF50', // Vibrant Green
   },
 } satisfies Record<string, { label: string; color: string }>;
 
@@ -75,11 +78,15 @@ const BugCountChart: React.FC = () => {
       const totalBugsB = b.openBugCount + b.closedBugCount;
       return totalBugsB - totalBugsA;
     });
-    return sortedData.map((feature) => ({
-      featureTitle: feature.featureTitle,
-      openBugCount: feature.openBugCount,
-      closedBugCount: feature.closedBugCount,
-    }));
+    
+    // Filter out features with zero bugs and map the data
+    return sortedData
+      .filter((bug) => bug.openBugCount > 0 || bug.closedBugCount > 0)
+      .map((feature) => ({
+        featureTitle: feature.featureTitle,
+        openBugCount: feature.openBugCount,
+        closedBugCount: feature.closedBugCount,
+      }));
   }, [bugCounts]);
 
   const totalBugs = useMemo(
@@ -89,80 +96,83 @@ const BugCountChart: React.FC = () => {
 
   // Calculate the chart height based on the number of data points
   const barSize = 30; // Fixed bar height
-  const chartHeight = chartData.length * barSize + (chartData.length - 1) * 4; // 4px gap between bars
+  const chartHeight = Math.max(chartData.length * barSize + (chartData.length - 1) * 4, 300); // Minimum height
 
   return (
-    <Card className='w-1/2'>
+    <Card className='w-full shadow-lg rounded-xl'>
       <CardHeader>
-        <CardTitle>Bug Count by Feature</CardTitle>
-        <CardDescription>Feature-specific open and closed bug counts</CardDescription>
+        <CardTitle className='text-xl font-semibold'>Bug Count by Feature</CardTitle>
+        <CardDescription className='text-gray-400'>Feature-specific open and closed bug counts</CardDescription>
       </CardHeader>
       <CardContent>
-        {loading && <p>Loading bug data...</p>}
-        {error && <p className="text-red-500">{error}</p>}
+        {loading && (
+          <div className='animate-pulse'>
+            <Skeleton height={200} />
+          </div>
+        )}
+        {error && <p className="text-red-500">Error: {error}</p>}
         {!loading && !error && bugCounts.length > 0 && (
-          <div style={{ height: '500px', overflowY: 'auto' }}>
+          <ChartContainer config={chartConfig}>
             <BarChart
-              width={800}
-              height={chartHeight}
               data={chartData}
               layout="vertical"
-              margin={{ left: 20, right: 20, top: 20, bottom: 20 }}
+              margin={{ left: 0, right: 0, top: 0, bottom: 0 }}
             >
-              <CartesianGrid horizontal={false} />
-              <XAxis type="number" />
+              <CartesianGrid stroke="#444" strokeDasharray="3 3" />
+              <XAxis type="number" stroke="#E0E0E0" />
               <YAxis
                 dataKey="featureTitle"
                 type="category"
                 tickLine={false}
                 axisLine={false}
-                width={250}
-                tickMargin={10}
+                width={200}
+                tick={{ fill: '#E0E0E0', fontSize: 12 }}
                 tickFormatter={(value) =>
                   value.length > 30 ? `${value.slice(0, 30)}...` : value
                 }
               />
               <Tooltip content={<CustomTooltip />} />
-              <Legend />
+              <Legend wrapperStyle={{ color: '#E0E0E0' }} />
               <Bar
                 dataKey="closedBugCount"
-                name="Closed Bugs"
+                name={chartConfig.closedBugs.label}
                 stackId="a"
                 fill={chartConfig.closedBugs.color}
                 barSize={barSize}
               />
               <Bar
                 dataKey="openBugCount"
-                name="Open Bugs"
+                name={chartConfig.openBugs.label}
                 stackId="a"
                 fill={chartConfig.openBugs.color}
                 barSize={barSize}
               />
             </BarChart>
-          </div>
+          </ChartContainer>
         )}
         {!loading && !error && bugCounts.length === 0 && (
           <p>No bug data available.</p>
         )}
       </CardContent>
-      <CardFooter className="flex-col items-start gap-2 text-sm">
-        <div className="flex gap-2 font-medium leading-none">
+      <CardFooter className="flex flex-col items-start gap-2 text-sm">
+        <div className="flex items-center gap-2 font-medium text-[#FFD700]">
           Total Bugs: {totalBugs} <TrendingUp className="h-4 w-4" />
         </div>
-        <div className="leading-none text-muted-foreground">
+        <div className="leading-none text-gray-500">
           Scroll to view all features and their bug counts
         </div>
       </CardFooter>
     </Card>
   );
+
 };
 
-// Custom Tooltip Component
+// Custom Tooltip Component with dark theme styling
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
     const totalBugs = payload.reduce((sum: number, entry: any) => sum + entry.value, 0);
     return (
-      <div className="bg-white border rounded-md p-2 shadow-lg">
+      <div className="bg-[#333333] text-[#E0E0E0] p-3 rounded-md shadow-lg">
         <p className="text-sm font-semibold">{label}</p>
         {payload.map((entry: any, index: number) => (
           <p key={`item-${index}`} className="text-xs" style={{ color: entry.color }}>

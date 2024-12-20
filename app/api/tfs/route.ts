@@ -4,12 +4,7 @@ import { NextResponse } from 'next/server';
 import axios from 'axios';
 import https from 'https';
 import { WorkItem } from '../../../interfaces/WorkItem';
-import { SystemFields } from '../../../interfaces/SystemFields';
-import { MicrosoftVSTSCommonFields } from '../../../interfaces/MicrosoftVSTSCommonFields';
-import { MicrosoftVSTSCMMIFields } from '../../../interfaces/MicrosoftVSTSCMMIFields';
-import { MicrosoftVSTSCommonSchedulingFields } from '../../../interfaces/MicrosoftVSTSCommonSchedulingFields';
-import { CostcoTravelFields } from '../../../interfaces/CostcoTravelFields';
-import { WEFFields } from '../../../interfaces/WEFFields';
+
 
 function extractDisplayName(displayName: string): string {
   if (typeof displayName !== 'string') return 'Unassigned';
@@ -45,7 +40,7 @@ export async function GET() {
       WHERE [System.WorkItemType] IN ('Feature', 'User Story', 'Bug', 'Task') 
         AND [System.State] IN ('Done', 'In Progress', 'Committed', 'New', 'Active') 
         AND [CostcoTravel.Team] CONTAINS 'Shopping Team' 
-        AND [System.CreatedDate] > '2024-06-01'
+        AND [System.CreatedDate] > '2024-12-01'
       ORDER BY [System.ChangedDate] DESC
     `,
   };
@@ -174,3 +169,6 @@ export async function GET() {
     return NextResponse.json({ error: error.response?.data || error.message }, { status: error.response?.status || 500 });
   }
 }
+
+
+

@@ -4,11 +4,13 @@ import { NextResponse } from 'next/server';
 import axios from 'axios';
 import https from 'https';
 
-interface FeatureBugCount {
+interface FeatureBugMetrics {
   featureId: number;
   featureTitle: string;
   openBugCount: number;
   closedBugCount: number;
+  averageOpenBugAgeDays: number | null;
+  averageClosedBugLifetimeDays: number | null;
 }
 
 export async function GET() {
@@ -25,7 +27,7 @@ export async function GET() {
   }
 
   const httpsAgent = new https.Agent({
-    rejectUnauthorized: false, // Use with caution. Only if necessary.
+    rejectUnauthorized: false, // Use with caution in production
   });
 
   const headers = {
@@ -92,15 +94,14 @@ export async function GET() {
 
     const detailedFeatures = await Promise.all(featureDetailsPromises);
 
-    // Step 3: Filter out any null results due to fetch errors
+    // Filter out any null results due to fetch errors
     const validFeatures = detailedFeatures.filter(
-      (item): item is { id: number; title: string; relations: any[] } =>
-        item !== null
+      (item): item is { id: number; title: string; relations: any[] } => item !== null
     );
 
-    // Step 4: For each feature, count the number of associated bugs
+    // Step 4: For each feature, count the number of associated bugs and compute metrics
     const bugCountPromises = validFeatures.map(async (feature) => {
-      const bugCounts = await countBugsForFeature(
+      const bugMetrics = await countBugsForFeature(
         feature.id,
         feature.relations,
         tfsBaseUrl,
@@ -108,14 +109,31 @@ export async function GET() {
         httpsAgent
       );
 
-      const featureBugCount: FeatureBugCount = {
+      const {
+        openBugCount,
+        closedBugCount,
+        openBugDurationSum,
+        openBugDurationCount,
+        closedBugDurationSum,
+        closedBugDurationCount
+      } = bugMetrics;
+
+      const averageOpenBugAgeDays =
+        openBugDurationCount > 0 ? openBugDurationSum / openBugDurationCount : null;
+
+      const averageClosedBugLifetimeDays =
+        closedBugDurationCount > 0 ? closedBugDurationSum / closedBugDurationCount : null;
+
+      const featureBugMetrics: FeatureBugMetrics = {
         featureId: feature.id,
         featureTitle: feature.title,
-        openBugCount: bugCounts.openBugCount,
-        closedBugCount: bugCounts.closedBugCount,
+        openBugCount,
+        closedBugCount,
+        averageOpenBugAgeDays,
+        averageClosedBugLifetimeDays,
       };
 
-      return featureBugCount;
+      return featureBugMetrics;
     });
 
     const bugCountsPerFeature = await Promise.all(bugCountPromises);
@@ -133,18 +151,33 @@ export async function GET() {
   }
 }
 
-// Updated countBugsForFeature function
+interface BugMetrics {
+  openBugCount: number;
+  closedBugCount: number;
+  openBugDurationSum: number;
+  openBugDurationCount: number;
+  closedBugDurationSum: number;
+  closedBugDurationCount: number;
+}
+
+// Enhanced countBugsForFeature function to track duration metrics
 async function countBugsForFeature(
   featureId: number,
   relations: any[],
   tfsBaseUrl: string,
   headers: any,
   httpsAgent: any
-): Promise<{ openBugCount: number; closedBugCount: number }> {
+): Promise<BugMetrics> {
   let openBugCount = 0;
   let closedBugCount = 0;
 
-  // Get direct child work item IDs
+  let openBugDurationSum = 0;
+  let openBugDurationCount = 0;
+
+  let closedBugDurationSum = 0;
+  let closedBugDurationCount = 0;
+
+  // Extract direct child work item IDs
   const childWorkItemIds = relations
     .filter((relation: any) => relation.rel === 'System.LinkTypes.Hierarchy-Forward')
     .map((relation: any) => {
@@ -153,7 +186,14 @@ async function countBugsForFeature(
     });
 
   if (childWorkItemIds.length === 0) {
-    return { openBugCount, closedBugCount };
+    return {
+      openBugCount,
+      closedBugCount,
+      openBugDurationSum,
+      openBugDurationCount,
+      closedBugDurationSum,
+      closedBugDurationCount,
+    };
   }
 
   // Fetch details of child work items
@@ -170,41 +210,75 @@ async function countBugsForFeature(
         id: response.data.id,
         type: fields['System.WorkItemType'],
         state: fields['System.State'],
+        createdDate: fields['System.CreatedDate'],
+        closedDate: fields['Microsoft.VSTS.Common.ClosedDate'] || null,
+        changedDate: fields['System.ChangedDate'],
         relations: response.data.relations || [],
       };
     } catch (error: any) {
-      console.error(
-        `Error fetching details for child work item ${childId}:`,
-        error.response?.data || error.message
-      );
+      console.error(`Error fetching child work item ${childId}:`, error.response?.data || error.message);
       return null;
     }
   });
 
   const childDetails = await Promise.all(childDetailsPromises);
-  const validChildDetails = childDetails.filter((item) => item !== null);
+  const validChildDetails = childDetails.filter((item) => item !== null) as {
+    id: number;
+    type: string;
+    state: string;
+    createdDate: string;
+    closedDate: string | null;
+    changedDate: string;
+    relations: any[];
+  }[];
 
   for (const child of validChildDetails) {
     if (child.type === 'Bug') {
-      // Check if the bug is open or closed based on its state
+      // It's a bug, determine open/closed status and compute durations
+      const createdDate = new Date(child.createdDate);
+
       if (['Active', 'New', 'In Progress', 'Committed', 'Planned'].includes(child.state)) {
+        // Open bug
         openBugCount++;
+        // Duration from creation until now
+        const now = new Date();
+        const durationDays = (now.getTime() - createdDate.getTime()) / (1000 * 60 * 60 * 24);
+        openBugDurationSum += durationDays;
+        openBugDurationCount++;
       } else if (['Closed', 'Resolved', 'Done', 'Released', 'Deployed'].includes(child.state)) {
+        // Closed bug
         closedBugCount++;
+        // Duration from creation until closed
+        const closedDate = child.closedDate ? new Date(child.closedDate) : new Date(child.changedDate);
+        const durationDays = (closedDate.getTime() - createdDate.getTime()) / (1000 * 60 * 60 * 24);
+        closedBugDurationSum += durationDays;
+        closedBugDurationCount++;
       }
     } else {
-      // Recursively count bugs under this child work item
-      const subfeatureBugCounts = await countBugsForFeature(
+      // Another work item type, possibly a sub-feature or task - recurse
+      const subMetrics = await countBugsForFeature(
         child.id,
         child.relations,
         tfsBaseUrl,
         headers,
         httpsAgent
       );
-      openBugCount += subfeatureBugCounts.openBugCount;
-      closedBugCount += subfeatureBugCounts.closedBugCount;
+
+      openBugCount += subMetrics.openBugCount;
+      closedBugCount += subMetrics.closedBugCount;
+      openBugDurationSum += subMetrics.openBugDurationSum;
+      openBugDurationCount += subMetrics.openBugDurationCount;
+      closedBugDurationSum += subMetrics.closedBugDurationSum;
+      closedBugDurationCount += subMetrics.closedBugDurationCount;
     }
   }
 
-  return { openBugCount, closedBugCount };
+  return {
+    openBugCount,
+    closedBugCount,
+    openBugDurationSum,
+    openBugDurationCount,
+    closedBugDurationSum,
+    closedBugDurationCount,
+  };
 }
