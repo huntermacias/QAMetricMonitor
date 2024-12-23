@@ -2,17 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import axios from 'axios'
 import https from 'node:https'
 
-/**
- * Force Next.js to run on Node.js runtime (not Edge),
- * so we can use `node:https`, `axios`, custom TLS, etc.
- */
+
 export const runtime = 'nodejs'
 
-/**
- * Create an HTTPS Agent that ignores invalid or self-signed certificates.
- * For production usage, you’d ideally add the correct CA to trust store 
- * instead of ignoring the cert.
- */
+
 const httpsAgent = new https.Agent({
   rejectUnauthorized: false,
 })
@@ -25,10 +18,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing jobName.' }, { status: 400 })
     }
 
-    // Example Jenkins URL
     const jenkinsUrl = `https://jenkins-auto.pacific.costcotravel.com/view/Automation%20Tests/view/Shopping/view/00%20-%20Weekly%20UI%20CRT/job/${encodeURIComponent(jobName)}/buildWithParameters`
 
-    // Pull Jenkins credentials from environment variables
     const username = process.env.JENKINS_USERNAME
     const token = process.env.JENKINS_TRIGGER_TOKEN
 
@@ -39,7 +30,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Build basic auth string
+  
     const auth = {
       username,
       password: token,

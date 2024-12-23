@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 /**
  * Barebones API route template
- * Replace <endpoint-name> with your desired endpoint name.
+ * Replace <endpoint-name> with your endpoint name.
  */
 export async function GET(request: NextRequest) {
   try {

@@ -4,10 +4,9 @@ import { NextResponse } from 'next/server'
 import axios from 'axios'
 import https from 'https'
 
-// Define the runtime environment
 export const runtime = 'nodejs'
 
-// If you want to override these in .env, you can do so:
+// Jenkins base URLs: can override in .env or .env.local
 const UI_BASE_URL =
   process.env.JENKINS_BASE_URL_UI ||
   'https://jenkins-auto.pacific.costcotravel.com/view/Automation%20Tests/view/Shopping/view/00%20-%20Weekly%20UI%20CRT'
@@ -16,26 +15,21 @@ const API_BASE_URL =
   process.env.JENKINS_BASE_URL_API ||
   'https://jenkins-auto.pacific.costcotravel.com/view/Automation%20Tests/view/Shopping/view/00%20-%20Weekly%20Service%20API%20CRT'
 
-/**
- * Jenkins auth token in Base64: "Basic <token>"
- * or just the part after 'Basic ', depending on how you store it.
- */
 const jenkinsAuthToken =
   process.env.JENKINS_AUTH_TOKEN ||
   'cmV0aGkucGlsbGFpQGNvc3Rjb3RyYXZlbC5jb206U2hyaXlhU3JpcmFtJTI2'
 
-// Configure axios headers using environment variables
 const headers = {
   Authorization: `Basic ${jenkinsAuthToken}`,
   'Content-Type': 'application/json',
 }
 
-// Configure HTTPS Agent
+// HTTPS agent (self-signed cert workaround)
 const httpsAgent = new https.Agent({
-  rejectUnauthorized: false, // Set to true in production with valid SSL certificates
+  rejectUnauthorized: false,
 })
 
-// List of Jenkins jobs to process (both UI and API)
+// Sample job list
 const jobList: string[] = [
   '00_Shopping_UI_CRT_Agent_Tests',
   '01_Shopping_UI_CRT_Consumer_Part1',
@@ -46,10 +40,12 @@ const jobList: string[] = [
   '01_Shopping_API_Service_Derby_Tickets',
 ]
 
-// TypeScript interfaces for Jenkins API responses
+// Interfaces
 interface Cause {
   _class: string
+  shortDescription?: string
   userName?: string
+  userId?: string
 }
 
 interface Action {
@@ -124,28 +120,22 @@ interface ProcessedBuildData {
   failedTests: string[]
   calculatedPassCount: number | null
   baselineFound: boolean
+  commits?: ChangeSet[] // If you want to store them
 }
 
 /**
  * Determine which base URL to use for a given job.
- * Here we just check if the job name contains "_API_".
- * Adjust logic as needed.
  */
 function getBaseUrlForJob(jobName: string): string {
-  if (jobName.includes('_API_')) {
-    return API_BASE_URL
-  } else {
-    return UI_BASE_URL
-  }
+  return jobName.includes('_API_') ? API_BASE_URL : UI_BASE_URL
 }
 
 /**
- * Extracts the username from the CauseAction.
- * (Currently not used, but here for reference)
+ * Extracts the username from hudson.model.CauseAction (if any).
  */
 function extractUsername(actions: Action[]): string | null {
   const causeAction = actions.find((action) => action._class === 'hudson.model.CauseAction')
-  if (causeAction && causeAction.causes) {
+  if (causeAction?.causes) {
     const userCause = causeAction.causes.find((cause) => cause.userName)
     return userCause ? userCause.userName! : null
   }
@@ -153,7 +143,7 @@ function extractUsername(actions: Action[]): string | null {
 }
 
 /**
- * Fetches the latest build number for a given job.
+ * Fetch the latest build number.
  */
 async function getLatestBuildNumber(jobName: string): Promise<number> {
   try {
@@ -163,8 +153,9 @@ async function getLatestBuildNumber(jobName: string): Promise<number> {
       { headers, httpsAgent }
     )
 
+    // If "lastBuild" is empty (e.g., no builds yet), you might get 404 or missing data
     if (typeof response.data.number !== 'number') {
-      throw new Error(`Invalid build number for job: ${jobName}`)
+      throw new Error(`Invalid or missing lastBuild number for job: ${jobName}`)
     }
 
     return response.data.number
@@ -175,7 +166,7 @@ async function getLatestBuildNumber(jobName: string): Promise<number> {
 }
 
 /**
- * Fetches detailed build data for a specific job and build number.
+ * Fetch build data for a specific job and build number.
  */
 async function fetchBuildData(jobName: string, buildNumber: number): Promise<ProcessedBuildData> {
   try {
@@ -184,9 +175,9 @@ async function fetchBuildData(jobName: string, buildNumber: number): Promise<Pro
       `${baseUrl}/job/${encodeURIComponent(jobName)}/${buildNumber}/api/json`,
       { headers, httpsAgent }
     )
-
     const data = response.data
-    const causeAction = data.actions.find((action) => action._class === 'hudson.model.CauseAction')
+
+    // Find relevant actions
     const testResultAction = data.actions.find(
       (action) => action._class === 'hudson.tasks.junit.TestResultAction'
     )
@@ -194,7 +185,7 @@ async function fetchBuildData(jobName: string, buildNumber: number): Promise<Pro
       (action) => action._class === 'hudson.model.ParametersAction'
     )
 
-    // Extract failed tests from parameters
+    // Extract failed tests from the 'Failed_Tests' parameter
     let failedTests: string[] = []
     if (parametersAction && Array.isArray(parametersAction.parameters)) {
       const failedTestsParam = parametersAction.parameters.find(
@@ -205,13 +196,16 @@ async function fetchBuildData(jobName: string, buildNumber: number): Promise<Pro
       }
     }
 
+    // Optionally parse the changeSet to capture commits
+    const commits = data.changeSet?.items || []
+
     return {
       jobName,
       fullDisplayName: data.fullDisplayName,
       trimmedDisplayName: data.fullDisplayName.split('#')[0].trim(),
       timestamp: data.timestamp,
       number: data.number,
-      userName:  extractUsername(data.actions), // Or use extractUsername(data.actions) if you want the actual user
+      userName: extractUsername(data.actions),
       duration: data.duration,
       estimatedDuration: data.estimatedDuration,
       result: data.result,
@@ -219,8 +213,9 @@ async function fetchBuildData(jobName: string, buildNumber: number): Promise<Pro
       totalCount: testResultAction?.totalCount ?? 0,
       skipCount: testResultAction?.skipCount ?? 0,
       failedTests,
-      calculatedPassCount: null, // To be calculated later
-      baselineFound: false, // To be determined later
+      calculatedPassCount: null, // Will be set later
+      baselineFound: false,
+      commits, // If you want to return commit details
     }
   } catch (error: any) {
     console.error(
@@ -232,16 +227,19 @@ async function fetchBuildData(jobName: string, buildNumber: number): Promise<Pro
 }
 
 /**
- * Finds the first build with userName === null to establish a baseline totalCount.
+ * Find the totalCount from the earliest "baseline" build (userName === null).
  */
 async function getBaselineTotalCount(
   jobName: string,
   latestBuildNumber: number
 ): Promise<number | null> {
   try {
+    // If you'd like to limit how far back you go, define e.g.:
+    // const MIN_BUILD_NUMBER = Math.max(latestBuildNumber - 50, 1) // last 50 builds
     for (let buildNum = latestBuildNumber; buildNum >= 1; buildNum--) {
       const buildData = await fetchBuildData(jobName, buildNum)
       if (buildData.userName === null) {
+        // Found baseline
         return buildData.totalCount
       }
     }
@@ -253,31 +251,32 @@ async function getBaselineTotalCount(
 }
 
 /**
- * Processes all builds for trend data.
+ * Process builds for all jobs in jobList.
  */
 async function processAllBuilds(): Promise<ProcessedBuildData[]> {
   const allBuilds: ProcessedBuildData[] = []
 
-  // Process jobs in parallel
+  // Process each job in parallel
   await Promise.all(
     jobList.map(async (jobName) => {
       try {
         const latestBuildNumber = await getLatestBuildNumber(jobName)
         const baselineTotalCount = await getBaselineTotalCount(jobName, latestBuildNumber)
 
-        // Iterate from latest build down to 1
+        // Iterate from latest build down to #1
         for (let buildNum = latestBuildNumber; buildNum >= 1; buildNum--) {
           const buildData = await fetchBuildData(jobName, buildNum)
 
           if (buildData.userName === null) {
-            // This is the baseline build
+            // Baseline build
             buildData.calculatedPassCount = buildData.totalCount - buildData.failCount
             buildData.baselineFound = true
             allBuilds.push(buildData)
-            break // Stop once we find a baseline
+            break
           } else {
             // Non-baseline build
             if (baselineTotalCount !== null) {
+              // Use the baseline total count as the reference for pass/fail
               buildData.calculatedPassCount = baselineTotalCount - buildData.failCount
               buildData.baselineFound = true
             } else {
@@ -300,7 +299,7 @@ async function processAllBuilds(): Promise<ProcessedBuildData[]> {
 }
 
 /**
- * API Route Handler: GET /api/jenkins
+ * GET /api/jenkins
  */
 export async function GET() {
   try {

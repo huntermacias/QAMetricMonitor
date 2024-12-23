@@ -1,5 +1,7 @@
 // app/sprint-tracker/page.tsx
 
+// TODO: haven't done much here
+
 import SprintTrackerPage from '@/components/SprintTrackerPage';
 import React from 'react';
 
