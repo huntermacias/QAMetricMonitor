@@ -1,4 +1,4 @@
-import { Calendar, Home, Inbox, Search, Settings, Bug, ChartArea, Medal, SquareStack } from "lucide-react"
+import { Calendar, Home, Inbox, Search, Settings, Bug, ChartArea, Medal, SquareStack, Building2 } from "lucide-react"
 
 import {
   Sidebar,
@@ -26,12 +26,17 @@ const items = [
     icon: Bug,
   },
   {
-    title: "CRT Analysis",
-    url: "#",
+    title: "Jenkins Build Data", 
+    url: "jenkins", 
+    icon: Building2
+  },
+  {
+    title: "CRT",
+    url: "crt",
     icon: ChartArea,
   },
   {
-    title: 'TFS Leaderboard', 
+    title: 'PR Leaderboard', 
     url: 'leaderboard', 
     icon: Medal,
   },

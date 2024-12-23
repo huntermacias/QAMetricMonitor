@@ -36,7 +36,6 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 
-// This config remains the same:
 const chartConfig = {
   bugs: {
     label: "Total Bugs",

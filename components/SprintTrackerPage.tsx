@@ -11,12 +11,12 @@ import {
   CardFooter,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card'; // Ensure correct import path
+} from '@/components/ui/card'; 
 import Skeleton from 'react-loading-skeleton';
 import 'react-loading-skeleton/dist/skeleton.css';
-import { Alert } from '@/components/ui/alert'; // Ensure correct import path
+import { Alert } from '@/components/ui/alert'; 
 import { TrendingUp } from 'lucide-react';
-import { SprintDetail } from '@/types/tfs'; // Ensure correct import path
+import { SprintDetail } from '@/types/tfs'; 
 
 const SprintTrackerPage: React.FC = () => {
   const [data, setData] = useState<SprintDetail[] | null>(null);
