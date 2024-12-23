@@ -1,15 +1,19 @@
 // app/api/bugs-per-feature/route.ts
 
-import { NextResponse } from 'next/server';
-import axios from 'axios';
-import https from 'https';
+import { computeBugMetrics, executeWiql, fetchWorkItemDetails } from '@/lib/tfs';
+import {  WorkItem } from '@/types/tfs';
+import { NextRequest, NextResponse } from 'next/server';
 
-interface FeatureBugCount {
+
+interface FeatureBugMetrics {
   featureId: number;
   featureTitle: string;
   openBugCount: number;
   closedBugCount: number;
+  averageOpenBugAgeDays: number | null;
+  averageClosedBugLifetimeDays: number | null;
 }
+
 
 export async function GET() {
   const tfsBaseUrl =
@@ -24,101 +28,79 @@ export async function GET() {
     );
   }
 
-  const httpsAgent = new https.Agent({
-    rejectUnauthorized: false, // Use with caution. Only if necessary.
-  });
-
-  const headers = {
-    'Content-Type': 'application/json',
-    Authorization: `Basic ${authToken}`,
-  };
-
-  const wiqlUrl = `${tfsBaseUrl}/_apis/wit/wiql?api-version=2.0`;
-
-  const query = {
-    query: `
-      SELECT [System.Id], [System.Title]
-      FROM WorkItems
-      WHERE [System.WorkItemType] = 'Feature'
-        AND [System.State] IN ('Planned', 'In Progress', 'Released', 'Deployed', 'Committed')
-        AND [CostcoTravel.Team] CONTAINS 'Shopping Team'
-        AND [System.CreatedDate] > '2024-01-01'
-      ORDER BY [System.ChangedDate] DESC
-    `,
-  };
+  const query = `
+    SELECT [System.Id], [System.Title]
+    FROM WorkItems
+    WHERE [System.WorkItemType] = 'Feature'
+      AND [System.State] IN ('Planned', 'In Progress', 'Released', 'Deployed', 'Committed')
+      AND [CostcoTravel.Team] CONTAINS 'Shopping Team'
+      AND [System.CreatedDate] > '2024-01-01'
+    ORDER BY [System.ChangedDate] DESC
+  `;
 
   try {
     // Step 1: Execute WIQL query to get feature IDs
-    const wiqlResponse = await axios.post(wiqlUrl, query, {
-      headers,
-      httpsAgent,
-    });
-
-    const workItems = wiqlResponse.data.workItems;
+    const workItems: { id: number; url: string }[] = await executeWiql(query);
 
     if (!workItems || workItems.length === 0) {
       console.log('No features found.');
       return NextResponse.json([], { status: 200 });
     }
 
+    const featureIds = workItems.map((item) => item.id);
+
     // Step 2: Fetch detailed information for each feature
-    const featureDetailsPromises = workItems.map(
-      async (item: { id: number; url: string }) => {
-        const detailUrl = `${tfsBaseUrl}/_apis/wit/workitems/${item.id}?$expand=Relations&api-version=1.0`;
+    const detailedFeaturesRaw = await fetchWorkItemDetails(featureIds);
 
-        try {
-          const detailResponse = await axios.get(detailUrl, {
-            headers,
-            httpsAgent,
-          });
-          const fields = detailResponse.data.fields;
+    const validFeatures: WorkItem[] = detailedFeaturesRaw
+      .filter((item: any) => item !== null)
+      .map((item: any) => ({
+        id: item.id,
+        title: item.fields['System.Title'],
+        relations: item.relations || [],
+      }));
 
-          const feature = {
-            id: detailResponse.data.id,
-            title: fields['System.Title'],
-            relations: detailResponse.data.relations || [],
-          };
-
-          return feature;
-        } catch (error: any) {
-          console.error(
-            `Error fetching details for feature ${item.id}:`,
-            error.response?.data || error.message
-          );
-          return null;
-        }
-      }
-    );
-
-    const detailedFeatures = await Promise.all(featureDetailsPromises);
-
-    // Step 3: Filter out any null results due to fetch errors
-    const validFeatures = detailedFeatures.filter(
-      (item): item is { id: number; title: string; relations: any[] } =>
-        item !== null
-    );
-
-    // Step 4: For each feature, count the number of associated bugs
-    const bugCountPromises = validFeatures.map(async (feature) => {
-      const bugCounts = await countBugsForFeature(
+    // Step 3: For each feature, compute bug metrics
+    const bugMetricsPromises = validFeatures.map(async (feature) => {
+      const bugMetrics = await computeBugMetrics(
         feature.id,
-        feature.relations,
-        tfsBaseUrl,
-        headers,
-        httpsAgent
+        feature.relations
       );
 
-      const featureBugCount: FeatureBugCount = {
+      const {
+        openBugCount,
+        closedBugCount,
+        openBugDurationSum,
+        openBugDurationCount,
+        closedBugDurationSum,
+        closedBugDurationCount,
+      } = bugMetrics;
+
+      const averageOpenBugAgeDays =
+        openBugDurationCount > 0
+          ? openBugDurationSum / openBugDurationCount
+          : null;
+
+      const averageClosedBugLifetimeDays =
+        closedBugDurationCount > 0
+          ? closedBugDurationSum / closedBugDurationCount
+          : null;
+
+      const featureBugMetrics: FeatureBugMetrics = {
         featureId: feature.id,
         featureTitle: feature.title,
-        openBugCount: bugCounts.openBugCount,
-        closedBugCount: bugCounts.closedBugCount,
+        openBugCount,
+        closedBugCount,
+        averageOpenBugAgeDays,
+        averageClosedBugLifetimeDays,
       };
 
-      return featureBugCount;
+      return featureBugMetrics;
     });
 
-    const bugCountsPerFeature = await Promise.all(bugCountPromises);
+    const bugCountsPerFeature: FeatureBugMetrics[] = await Promise.all(
+      bugMetricsPromises
+    );
 
     return NextResponse.json(bugCountsPerFeature, { status: 200 });
   } catch (error: any) {
@@ -131,80 +113,4 @@ export async function GET() {
       { status: error.response?.status || 500 }
     );
   }
-}
-
-// Updated countBugsForFeature function
-async function countBugsForFeature(
-  featureId: number,
-  relations: any[],
-  tfsBaseUrl: string,
-  headers: any,
-  httpsAgent: any
-): Promise<{ openBugCount: number; closedBugCount: number }> {
-  let openBugCount = 0;
-  let closedBugCount = 0;
-
-  // Get direct child work item IDs
-  const childWorkItemIds = relations
-    .filter((relation: any) => relation.rel === 'System.LinkTypes.Hierarchy-Forward')
-    .map((relation: any) => {
-      const urlParts = relation.url.split('/');
-      return parseInt(urlParts[urlParts.length - 1]);
-    });
-
-  if (childWorkItemIds.length === 0) {
-    return { openBugCount, closedBugCount };
-  }
-
-  // Fetch details of child work items
-  const childDetailsPromises = childWorkItemIds.map(async (childId: number) => {
-    const detailUrl = `${tfsBaseUrl}/_apis/wit/workitems/${childId}?$expand=Relations&api-version=1.0`;
-
-    try {
-      const response = await axios.get(detailUrl, {
-        headers,
-        httpsAgent,
-      });
-      const fields = response.data.fields;
-      return {
-        id: response.data.id,
-        type: fields['System.WorkItemType'],
-        state: fields['System.State'],
-        relations: response.data.relations || [],
-      };
-    } catch (error: any) {
-      console.error(
-        `Error fetching details for child work item ${childId}:`,
-        error.response?.data || error.message
-      );
-      return null;
-    }
-  });
-
-  const childDetails = await Promise.all(childDetailsPromises);
-  const validChildDetails = childDetails.filter((item) => item !== null);
-
-  for (const child of validChildDetails) {
-    if (child.type === 'Bug') {
-      // Check if the bug is open or closed based on its state
-      if (['Active', 'New', 'In Progress', 'Committed', 'Planned'].includes(child.state)) {
-        openBugCount++;
-      } else if (['Closed', 'Resolved', 'Done', 'Released', 'Deployed'].includes(child.state)) {
-        closedBugCount++;
-      }
-    } else {
-      // Recursively count bugs under this child work item
-      const subfeatureBugCounts = await countBugsForFeature(
-        child.id,
-        child.relations,
-        tfsBaseUrl,
-        headers,
-        httpsAgent
-      );
-      openBugCount += subfeatureBugCounts.openBugCount;
-      closedBugCount += subfeatureBugCounts.closedBugCount;
-    }
-  }
-
-  return { openBugCount, closedBugCount };
 }
