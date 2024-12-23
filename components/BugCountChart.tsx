@@ -2,10 +2,10 @@
 
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import React, { useMemo } from 'react';
 import {
-  Bar,
   BarChart,
+  Bar,
   CartesianGrid,
   XAxis,
   YAxis,
@@ -24,7 +24,8 @@ import {
 import { TrendingUp } from 'lucide-react';
 import Skeleton from 'react-loading-skeleton';
 import 'react-loading-skeleton/dist/skeleton.css';
-import { ChartContainer } from './ui/chart';
+import { useQuery } from 'react-query';
+import axios from 'axios';
 
 // Updated color palette for dark theme
 const chartConfig = {
@@ -38,47 +39,73 @@ const chartConfig = {
   },
 } satisfies Record<string, { label: string; color: string }>;
 
-interface BugCountPerFeature {
+// TypeScript Interfaces
+interface FeatureBugMetrics {
   featureId: number;
   featureTitle: string;
   openBugCount: number;
   closedBugCount: number;
+  averageOpenBugAgeDays: number | null;
+  averageClosedBugLifetimeDays: number | null;
 }
 
+interface FetchError {
+  error: string;
+}
+
+// Custom Tooltip Component with dark theme styling
+const CustomTooltip: React.FC<{
+  active?: boolean;
+  payload?: any;
+  label?: string;
+}> = ({ active, payload, label }) => {
+  if (active && payload && payload.length) {
+    const totalBugs = payload.reduce((sum: number, entry: any) => sum + entry.value, 0);
+    return (
+      <div className="bg-[#333333] text-[#E0E0E0] p-3 rounded-md shadow-lg">
+        <p className="text-sm font-semibold">{label}</p>
+        {payload.map((entry: any, index: number) => (
+          <p key={`item-${index}`} className="text-xs" style={{ color: entry.color }}>
+            {entry.name}: {entry.value}
+          </p>
+        ))}
+        <p className="text-xs font-semibold">Total Bugs: {totalBugs}</p>
+      </div>
+    );
+  }
+
+  return null;
+};
+
 const BugCountChart: React.FC = () => {
-  const [bugCounts, setBugCounts] = useState<BugCountPerFeature[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // Fetch bug counts using React Query
+  const { data, isLoading, isError, error } = useQuery<FeatureBugMetrics[], FetchError>(
+    'bugCounts',
+    async () => {
+      const response = await axios.get('/api/bugs-per-feature');
+      return response.data;
+    },
+    {
+      retry: 2, // Retry twice on failure
+      staleTime: 1000 * 60 * 5, // 5 minutes
+      cacheTime: 1000 * 60 * 30, // 30 minutes
+      onError: (err: any) => {
+        console.error('Error fetching bug counts:', err); // this is happening
+      },
+    }
+  );
 
-  useEffect(() => {
-    const fetchBugCounts = async () => {
-      setLoading(true);
-      try {
-        const response = await fetch('/api/bugs-per-feature');
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || `Failed to fetch: ${response.statusText}`);
-        }
-        const data: BugCountPerFeature[] = await response.json();
-        setBugCounts(data);
-      } catch (err: any) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchBugCounts();
-  }, []);
-
+  // Memoize processed chart data
   const chartData = useMemo(() => {
+    if (!data) return [];
+
     // Sort features by total bug count in descending order
-    const sortedData = [...bugCounts].sort((a, b) => {
+    const sortedData = [...data].sort((a, b) => {
       const totalBugsA = a.openBugCount + a.closedBugCount;
       const totalBugsB = b.openBugCount + b.closedBugCount;
       return totalBugsB - totalBugsA;
     });
-    
+
     // Filter out features with zero bugs and map the data
     return sortedData
       .filter((bug) => bug.openBugCount > 0 || bug.closedBugCount > 0)
@@ -87,39 +114,52 @@ const BugCountChart: React.FC = () => {
         openBugCount: feature.openBugCount,
         closedBugCount: feature.closedBugCount,
       }));
-  }, [bugCounts]);
+  }, [data]);
 
+  // Calculate the total number of bugs
   const totalBugs = useMemo(
-    () => bugCounts.reduce((acc, curr) => acc + curr.openBugCount + curr.closedBugCount, 0),
-    [bugCounts]
+    () => (data ? data.reduce((acc:any, curr:any) => acc + curr.openBugCount + curr.closedBugCount, 0) : 0),
+    [data]
   );
 
-  // Calculate the chart height based on the number of data points
+  // Determine the chart height based on the number of data points
   const barSize = 30; // Fixed bar height
-  const chartHeight = Math.max(chartData.length * barSize + (chartData.length - 1) * 4, 300); // Minimum height
+  const chartHeight = useMemo(() => {
+    if (chartData.length === 0) return 300;
+    return Math.min(chartData.length * barSize + (chartData.length - 1) * 4, 600); // Limit maximum height
+  }, [chartData.length]);
 
   return (
-    <Card className='w-full shadow-lg rounded-xl'>
+    <Card className="w-full shadow-lg rounded-xl">
       <CardHeader>
-        <CardTitle className='text-xl font-semibold'>Bug Count by Feature</CardTitle>
-        <CardDescription className='text-gray-400'>Feature-specific open and closed bug counts</CardDescription>
+        <CardTitle className="text-xl font-semibold text-white">Bug Count by Feature</CardTitle>
+        <CardDescription className="text-gray-400">
+          Feature-specific open and closed bug counts
+        </CardDescription>
       </CardHeader>
       <CardContent>
-        {loading && (
-          <div className='animate-pulse'>
-            <Skeleton height={200} />
+        {isLoading && (
+          <div className="animate-pulse">
+            <Skeleton height={chartHeight} />
           </div>
         )}
-        {error && <p className="text-red-500">Error: {error}</p>}
-        {!loading && !error && bugCounts.length > 0 && (
-          <ChartContainer config={chartConfig}>
+        {isError && (
+          <p className="text-red-500">Error: {error?.error || 'Failed to load data.'}</p>
+        )}
+        {!isLoading && !isError && chartData.length > 0 && (
+          <ResponsiveContainer width="100%" height={chartHeight}>
             <BarChart
               data={chartData}
               layout="vertical"
-              margin={{ left: 0, right: 0, top: 0, bottom: 0 }}
+              margin={{ left: 100, right: 30, top: 20, bottom: 20 }}
             >
               <CartesianGrid stroke="#444" strokeDasharray="3 3" />
-              <XAxis type="number" stroke="#E0E0E0" />
+              <XAxis
+                type="number"
+                stroke="#E0E0E0"
+                tick={{ fill: '#E0E0E0' }}
+                allowDecimals={false}
+              />
               <YAxis
                 dataKey="featureTitle"
                 type="category"
@@ -127,7 +167,7 @@ const BugCountChart: React.FC = () => {
                 axisLine={false}
                 width={200}
                 tick={{ fill: '#E0E0E0', fontSize: 12 }}
-                tickFormatter={(value) =>
+                tickFormatter={(value: string) =>
                   value.length > 30 ? `${value.slice(0, 30)}...` : value
                 }
               />
@@ -148,10 +188,10 @@ const BugCountChart: React.FC = () => {
                 barSize={barSize}
               />
             </BarChart>
-          </ChartContainer>
+          </ResponsiveContainer>
         )}
-        {!loading && !error && bugCounts.length === 0 && (
-          <p>No bug data available.</p>
+        {!isLoading && !isError && chartData.length === 0 && (
+          <p className="text-gray-400">No bug data available.</p>
         )}
       </CardContent>
       <CardFooter className="flex flex-col items-start gap-2 text-sm">
@@ -164,27 +204,6 @@ const BugCountChart: React.FC = () => {
       </CardFooter>
     </Card>
   );
-
-};
-
-// Custom Tooltip Component with dark theme styling
-const CustomTooltip = ({ active, payload, label }: any) => {
-  if (active && payload && payload.length) {
-    const totalBugs = payload.reduce((sum: number, entry: any) => sum + entry.value, 0);
-    return (
-      <div className="bg-[#333333] text-[#E0E0E0] p-3 rounded-md shadow-lg">
-        <p className="text-sm font-semibold">{label}</p>
-        {payload.map((entry: any, index: number) => (
-          <p key={`item-${index}`} className="text-xs" style={{ color: entry.color }}>
-            {entry.name}: {entry.value}
-          </p>
-        ))}
-        <p className="text-xs font-semibold">Total Bugs: {totalBugs}</p>
-      </div>
-    );
-  }
-
-  return null;
 };
 
 export default BugCountChart;

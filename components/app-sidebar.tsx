@@ -1,4 +1,4 @@
-import { Calendar, Home, Inbox, Search, Settings, Bug, ChartArea, Medal } from "lucide-react"
+import { Calendar, Home, Inbox, Search, Settings, Bug, ChartArea, Medal, SquareStack } from "lucide-react"
 
 import {
   Sidebar,
@@ -17,12 +17,12 @@ import { ModeToggle } from "./theme-toggle"
 const items = [
   {
     title: "Home",
-    url: "#",
+    url: "/",
     icon: Home,
   },
   {
     title: "Bugs",
-    url: "#",
+    url: "bugs",
     icon: Bug,
   },
   {
@@ -36,8 +36,13 @@ const items = [
     icon: Medal,
   },
   {
+    title: 'Sprint Tracker', 
+    url: 'sprint-tracker', 
+    icon: SquareStack,
+  },
+  {
     title: "Settings",
-    url: "#",
+    url: "settings",
     icon: Settings,
   },
 ]

@@ -41,7 +41,6 @@ export async function GET() {
     QA: 'https://tfs.pacific.costcotravel.com/tfs/TestAutomation', // QA/SDET
     DEV: 'https://tfs.pacific.costcotravel.com/tfs/CostcoTravel', // DEV
   };
-
   const authToken =
     process.env.TFS_AUTH_TOKEN ||
     'cmV0aGkucGlsbGFpQGNvc3Rjb3RyYXZlbC5jb206dnJsdXJiYnZza3RhZWdtdnlhang1eHU3ZjZuc29sY3R2dWs2bXc1dmd4eTQ3dXpya3J5cQ==';
