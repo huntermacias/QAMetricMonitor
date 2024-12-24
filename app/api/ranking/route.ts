@@ -45,7 +45,7 @@ export async function GET() {
     process.env.TFS_AUTH_TOKEN ||
     'cmV0aGkucGlsbGFpQGNvc3Rjb3RyYXZlbC5jb206dnJsdXJiYnZza3RhZWdtdnlhang1eHU3ZjZuc29sY3R2dWs2bXc1dmd4eTQ3dXpya3J5cQ==';
 
-  // TODO: Replace with dynamic API call to fetch all creatorIDs from portfolio
+  // TODO: Replace with dynamic API call to fetch all creatorIDs from portfolios
   const creatorIds: Record<string, string> = {
     tim: '931f58f3-c186-4e2c-93e2-965a896c733c',
     hunter: '3e9bcd43-8a35-491c-81df-290cc9a3aec2',
@@ -76,6 +76,9 @@ export async function GET() {
     apiconnect: 'c05c7ef9-5fe8-4db5-8ab1-c9fcb4595dac',
     zurichEgresMSTests: '3a6a8a58-666a-4f5c-8134-1fc26c494ca6',
     egress1: '5e15c513-64d8-4889-a890-188371c8f6ae',
+    hotelSearchIngress: '77d8b832-5366-45af-a84d-0d9a3cd5cfb8', 
+    odysseusCruiseDataGenerator: '7faf8b49-851c-425d-b796-ff7acbdebce4',
+    qaPerf: '24f737fe-451a-4aa0-90fc-fc3427f6fa39',
     core: '695208e1-46b6-415a-974c-b26e067c8ab4', // DEV
     consumer: 'e4ac12a4-c640-4637-9843-83b66e2f5e7c', // DEV
   };
