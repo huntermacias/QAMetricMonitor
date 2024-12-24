@@ -17,4 +17,6 @@ export interface WorkItem {
   costcoTravel: CostcoTravelFields;
   wef: WEFFields[];
   systemDescription: string;
+  tags: any;
+  
 }

@@ -29,9 +29,9 @@ export interface SystemFields {
     ChangedBy: string;
     AuthorizedAs: string;
     PersonId: number;
-    Watermark: number;
     Title: string;
     BoardColumn: string;
     BoardColumnDone: boolean;
+    tags: any;
   }
   
