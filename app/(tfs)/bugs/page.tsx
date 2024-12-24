@@ -6,6 +6,7 @@ import Skeleton from 'react-loading-skeleton';
 import 'react-loading-skeleton/dist/skeleton.css';
 import Modal from '@/components/Modal';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
 
 interface TFSWorkItem {
   id: number;
@@ -113,7 +114,8 @@ const TFSPage: React.FC = () => {
     const counts: Record<string, number> = {};
     dataWithParsedTags.forEach((wi) => {
       wi.parsedTags.forEach((tag) => {
-        counts[tag] = (counts[tag] || 0) + 1;
+        const cleanTag = tag.replace('#', '').toLowerCase()
+        counts[cleanTag] = (counts[cleanTag] || 0) + 1;
       });
     });
     return counts; // e.g. { "#CRT_Consumer_Part1": 5, "#LowerEnv": 3, "#Testability_QA": 1 }
@@ -408,8 +410,15 @@ const TFSPage: React.FC = () => {
 
                           {/* Tags */}
                           <td className="py-2 px-4 border-b border-[#444] text-left">
-                            {item.system.tags}
+                            {item.system.tags ? (
+                              item.system.tags.split(';').map((tag, index) => (
+                                <Badge key={index} className="mr-1 my-1">{tag.trim()}</Badge>
+                              ))
+                            ) : (
+                              <span className="text-gray-500">No tags</span>
+                            )}
                           </td>
+
 
                           {/* Actions */}
                           <td className="py-2 px-4 border-b border-[#444] text-left">
