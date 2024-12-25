@@ -17,6 +17,10 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { Calendar } from "@/components/ui/calendar";
 import { Separator } from "@radix-ui/react-separator";
+import { mockTFSWorkItems } from "@/resources/mock-data";
+import { ChevronDown, ChevronUp } from "lucide-react";
+import StatisticCard from "./_components/StatisticCard";
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface TFSWorkItem {
   id: number;
@@ -131,33 +135,62 @@ const TFSPage: FC = () => {
   // TFS Base URL
   const tfsBaseUrl = process.env.NEXT_PUBLIC_TFS_BASE_URL || "https://tfs.pacific.costcotravel.com/tfs/CostcoTravel";
 
-  // Fetch Data
   useEffect(() => {
     (async () => {
       setLoading(true);
       try {
-        const response = await fetch("/api/tfs");
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || `Failed to fetch data: ${response.statusText}`);
+        if (process.env.NEXT_PUBLIC_USE_MOCK_DATA === "true") {
+          // Use mock data
+          const withParsedTags = mockTFSWorkItems.map((item) => {
+            const rawTags = item.system.tags || "";
+            const parsedTags = rawTags
+              .split(";")
+              .map((t:any) => t.trim())
+              .filter((t:any) => t.length > 0);
+            return { ...item, parsedTags };
+          });
+          setData(withParsedTags);
+          setFilteredData(withParsedTags);
+        } else {
+          // Fetch real data
+          const response = await fetch("/api/tfs");
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || `Failed to fetch data: ${response.statusText}`);
+          }
+          const result: TFSWorkItem[] = await response.json();
+          // Add parsed tags
+          const withParsedTags = result.map((item) => {
+            const rawTags = item.system.tags || "";
+            const parsedTags = rawTags
+              .split(";")
+              .map((t) => t.trim())
+              .filter((t) => t.length > 0);
+            return { ...item, parsedTags };
+          });
+          setData(withParsedTags);
+          setFilteredData(withParsedTags);
         }
-        const result: TFSWorkItem[] = await response.json();
-        // Add parsed tags
-        const withParsedTags = result.map((item) => {
-          const rawTags = item.system.tags || "";
-          const parsedTags = rawTags
-            .split(";")
-            .map((t) => t.trim())
-            .filter((t) => t.length > 0);
-          return { ...item, parsedTags };
-        });
-        setData(withParsedTags);
-        setFilteredData(withParsedTags);
       } catch (err) {
         if (err instanceof Error) {
           setError(err.message);
         } else {
           setError("An unknown error occurred.");
+        }
+
+        // Optionally, fallback to mock data on error
+        if (process.env.NEXT_PUBLIC_USE_MOCK_DATA !== "true") {
+          console.warn("Falling back to mock data due to fetch error.");
+          const withParsedTags = mockTFSWorkItems.map((item) => {
+            const rawTags = item.system.tags || "";
+            const parsedTags = rawTags
+              .split(";")
+              .map((t:any) => t.trim())
+              .filter((t:any) => t.length > 0);
+            return { ...item, parsedTags };
+          });
+          setData(withParsedTags);
+          setFilteredData(withParsedTags);
         }
       } finally {
         setLoading(false);
@@ -190,7 +223,18 @@ const TFSPage: FC = () => {
       debounce(() => {
         applyFilters();
       }, 300),
-    [stateFilter, typeFilter, AuthorizedAsFilter, teamFilter, sprintFilter, idSearch, tagSearch, tagFilter, dateRange, data]
+    [
+      stateFilter,
+      typeFilter,
+      AuthorizedAsFilter,
+      teamFilter,
+      sprintFilter,
+      idSearch,
+      tagSearch,
+      tagFilter,
+      dateRange,
+      data,
+    ]
   );
 
   useEffect(() => {
@@ -234,7 +278,7 @@ const TFSPage: FC = () => {
     // 6) Filter by Date Range (CreatedDate)
     if (dateRange.from && dateRange.to) {
       filtered = filtered.filter((item) => {
-        const created = parseISO(item.system.CreatedDate); // e.g. "2024-12-06T23:24:07.62Z"
+        const created = parseISO(item.system.CreatedDate);
         return isWithinInterval(created, {
           start: startOfDay(dateRange.from!),
           end: endOfDay(dateRange.to!),
@@ -313,10 +357,12 @@ const TFSPage: FC = () => {
           break;
       }
 
+      // Numeric sort
       if (typeof aValue === "number" && typeof bValue === "number") {
         return direction === "ascending" ? aValue - bValue : bValue - aValue;
       }
 
+      // String sort
       if (typeof aValue === "string" && typeof bValue === "string") {
         return direction === "ascending"
           ? aValue.localeCompare(bValue)
@@ -329,6 +375,10 @@ const TFSPage: FC = () => {
   }, [filteredData, sortConfig]);
 
   const totalPages = Math.ceil(sortedData.length / pageSize);
+
+  const countByState = (state: string, data: TFSWorkItem[]) => {
+    return data.filter((item) => item.system.State === state).length;
+  };
 
   const displayData = useMemo(() => {
     const startIndex = (currentPage - 1) * pageSize;
@@ -377,415 +427,436 @@ const TFSPage: FC = () => {
   }
 
   return (
-    <div className="min-h-screen p-4 font-sans text-xs space-y-6">
-      <h1 className="text-center text-2xl font-bold mb-6 tracking-wide">
-        TFS Work Items Dashboard
-      </h1>
+    <div className="min-h-screen w-full mx-auto flex flex-col font-sans text-sm">
+      {/* ----------------------- Header / Title Section ----------------------- */}
+      <header className="w-full p-6 shadow-sm flex items-center justify-between">
+        <h1 className="text-xl font-extrabold tracking-wide">
+          TFS Work Items Dashboard
+        </h1>
+        <button
+          onClick={clearAllFilters}
+          className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 text-xs"
+        >
+          Clear All Filters
+        </button>
+      </header>
 
-      <div className="flex flex-col lg:flex-row gap-4">
-        {/* Filters + Table */}
-        <div className="flex space-y-4">
-          {/* Filter Panel */}
-          <div className="p-4 rounded-xl shadow-md flex gap-4 items-start">
-            {/* Column 1: State, Type, Resource, Team, Sprint */}
-            <div className="flex flex-col space-y-4">
-              <Select onValueChange={(value) => setStateFilter(value)}>
-                <SelectTrigger className="w-40">
-                  <SelectValue placeholder={stateFilter || "All States"} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    <SelectLabel>State</SelectLabel>
-                    <SelectItem value="N/A">All States</SelectItem>
-                    {getUniqueValues("state").map((state) => (
-                      <SelectItem key={state} value={state}>
-                        {state}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-
-              <Select onValueChange={(value) => setTypeFilter(value)}>
-                <SelectTrigger className="w-40">
-                  <SelectValue placeholder={typeFilter || "All Types"} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    <SelectLabel>Type</SelectLabel>
-                    <SelectItem value="N/A">All Types</SelectItem>
-                    {getUniqueValues("type").map((t) => (
-                      <SelectItem key={t} value={t}>
-                        {t}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-
-              <Select onValueChange={(value) => setAuthorizedAsFilter(value)}>
-                <SelectTrigger className="w-40">
-                  <SelectValue placeholder={AuthorizedAsFilter || "All Assigned"} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    <SelectLabel>QA Resource</SelectLabel>
-                    <SelectItem value="N/A">All Assigned</SelectItem>
-                    {getUniqueValues("AuthorizedAs").map((authAs) => (
-                      <SelectItem key={authAs} value={authAs}>
-                        {authAs.includes("Microsoft.TeamFoundation.System")
-                          ? "No Assigned Resource"
-                          : authAs.split(" ").slice(0, 2).join(" ")}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-
-              <Select onValueChange={(value) => setTeamFilter(value)}>
-                <SelectTrigger className="w-40">
-                  <SelectValue placeholder={teamFilter || "All Teams"} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    <SelectLabel>Team</SelectLabel>
-                    <SelectItem value="N/A">All Teams</SelectItem>
-                    {getUniqueValues("team").map((team) => (
-                      <SelectItem key={team} value={team}>
-                        {team}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-
-              {/* Sprint */}
-              <Select onValueChange={(value) => setSprintFilter(value)}>
-                <SelectTrigger className="w-40">
-                  <SelectValue placeholder={sprintFilter || "All Sprints"} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    <SelectLabel>Sprint</SelectLabel>
-                    <SelectItem value="N/A">All Sprints</SelectItem>
-                    {uniqueSprints.map((s) => (
-                      <SelectItem key={s} value={s}>
-                        {s}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-
-              <div className="space-y-4">
-             
-
-             {/* ID Search */}
-             <div className=" space-y-1">
-               <p className="text-xs font-semibold">Search by ID</p>
-               <input
-                 type="number"
-                 placeholder="Search by ID"
-                 className="px-3 py-2 border border-gray-300 rounded focus:outline-none focus:border-blue-500 w-40"
-                 value={idSearch}
-                 onChange={(e: ChangeEvent<HTMLInputElement>) => setIdSearch(e.target.value)}
-               />
-             </div>
-
-             {/* Tag Search */}
-             <div className="flex flex-col space-y-1">
-               <p className="text-xs font-semibold">Search by Tag</p>
-               <input
-                 type="text"
-                 placeholder="Search Tag"
-                 className="px-3 py-2 border border-gray-300 rounded focus:outline-none focus:border-blue-500 w-40"
-                 value={tagSearch}
-                 onChange={(e: ChangeEvent<HTMLInputElement>) => setTagSearch(e.target.value)}
-               />
-             </div>
-
-             {/* Clear All */}
-             <button
-               onClick={clearAllFilters}
-               className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 transition-colors text-xs w-fit"
-             >
-               Clear All
-             </button>
-           </div>
-            </div>
-
-            {/* Column 2: Calendar Range + ID & Tag Search + Clear */}
-           
+      {/* ----------------------- Main Layout: Stats + Table + Side Filters ----------------------- */}
+      <div className="flex flex-1 overflow-hidden">
+        {/* ----------- Left Panel: Filter UI + Date/Tag Filters ----------- */}
+        <aside className="w-64 border-r p-4 space-y-6 overflow-y-auto hidden xl:block">
+          {/* Filter Title */}
+          <div className="mb-2">
+            <p className="text-lg font-bold">Filters</p>
           </div>
 
-          {/* Loading / Error */}
-          {loading && (
-            <div className="flex justify-center items-center">
-              <Loading />
+          {/* Basic Filters */}
+          <div className="space-y-2">
+            <Select onValueChange={(value) => setStateFilter(value)}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder={stateFilter || "All States"} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  <SelectLabel>State</SelectLabel>
+                  <SelectItem value="N/A">All</SelectItem>
+                  {getUniqueValues("state").map((state) => (
+                    <SelectItem key={state} value={state}>
+                      {state}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+
+            <Select onValueChange={(value) => setTypeFilter(value)}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder={typeFilter || "All Types"} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  <SelectLabel>Type</SelectLabel>
+                  <SelectItem value="N/A">All</SelectItem>
+                  {getUniqueValues("type").map((t) => (
+                    <SelectItem key={t} value={t}>
+                      {t}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+
+            <Select onValueChange={(value) => setAuthorizedAsFilter(value)}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder={AuthorizedAsFilter || "All QA"} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  <SelectLabel>QA Resource</SelectLabel>
+                  <SelectItem value="N/A">All</SelectItem>
+                  {getUniqueValues("AuthorizedAs").map((authAs) => (
+                    <SelectItem key={authAs} value={authAs}>
+                      {authAs.includes("Microsoft.TeamFoundation.System")
+                        ? "No Resource"
+                        : authAs.split(" ").slice(0, 2).join(" ")}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+
+            <Select onValueChange={(value) => setTeamFilter(value)}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder={teamFilter || "All Teams"} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  <SelectLabel>Team</SelectLabel>
+                  <SelectItem value="N/A">All</SelectItem>
+                  {getUniqueValues("team").map((team) => (
+                    <SelectItem key={team} value={team}>
+                      {team}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+
+            <Select onValueChange={(value) => setSprintFilter(value)}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder={sprintFilter || "All Sprints"} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  <SelectLabel>Sprint</SelectLabel>
+                  <SelectItem value="N/A">All</SelectItem>
+                  {uniqueSprints.map((s) => (
+                    <SelectItem key={s} value={s}>
+                      {s}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* ID & Tag Search */}
+          <div className="space-y-2">
+            <div className="flex flex-col">
+              <label className="text-xs font-semibold">ID Search</label>
+              <input
+                type="number"
+                value={idSearch}
+                onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                  setIdSearch(e.target.value)
+                }
+                placeholder="Enter ID"
+                className="px-2 py-1 border rounded"
+              />
             </div>
-          )}
-          {error && (
-            <div className="text-center text-red-400 text-sm">
-              <p>Error: {error}</p>
+
+            <div className="flex flex-col">
+              <label className="text-xs font-semibold">Tag Search</label>
+              <input
+                type="text"
+                value={tagSearch}
+                onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                  setTagSearch(e.target.value)
+                }
+                placeholder="Search tag"
+                className="px-2 py-1 border rounded"
+              />
             </div>
-          )}
+          </div>
 
-          {/* Table */}
-          {!loading && !error && (
-            <div className="border rounded-xl shadow-md p-4">
-              <div className="overflow-x-auto">
-                <table className="min-w-full text-sm">
-                  <thead>
-                    <tr className="border-b uppercase tracking-wider">
-                      {[
-                        { key: "id", label: "ID" },
-                        { key: "title", label: "Title" },
-                        { key: "workItemType", label: "Type" },
-                        { key: "state", label: "State" },
-                        { key: "AuthorizedAs", label: "QA Resource" },
-                        { key: "team", label: "Team" },
-                        { key: "sprint", label: "Sprint" },
-                        { key: "tags", label: "Tags" },
-                        { key: "", label: "Actions" },
-                      ].map((col) => (
-                        <th
-                          key={col.key}
-                          onClick={col.key ? () => handleSort(col.key as SortKey) : undefined}
-                          className={cn(
-                            "py-2 px-4 text-left font-semibold cursor-pointer",
-                            col.key && "underline decoration-dotted"
-                          )}
-                          style={{ whiteSpace: "nowrap" }}
-                          aria-sort={
-                            sortConfig?.key === col.key
-                              ? sortConfig.direction === "ascending"
-                                ? "ascending"
-                                : "descending"
-                              : "none"
-                          }
-                        >
-                          {col.label}{" "}
-                          {col.key && sortConfig?.key === col.key
-                            ? sortConfig.direction === "ascending"
-                              ? "↑"
-                              : "↓"
-                            : ""}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {displayData.length > 0 ? (
-                      displayData.map((item) => (
-                        <tr key={item.id} className="transition-colors">
-                          {/* ID */}
-                          <td className="py-2 px-4 border-b border-gray-300 text-left">
-                            {item.id}
-                          </td>
-
-                          {/* Title */}
-                          <td className="py-2 px-4 border-b border-gray-300 text-left">
-                            <a
-                              href={`${tfsBaseUrl}/Work%20Items/_workitems/edit/${item.id}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="font-bold italic tracking-wider text-blue-400 hover:underline"
-                            >
-                              {item.system.Title}
-                            </a>
-                          </td>
-
-                          {/* Type */}
-                          <td className="py-2 px-4 border-b border-gray-300 text-left">
-                            <Badge
-                              ticketType={mapWorkItemType(item.system.WorkItemType)}
-                              className="w-24"
-                            >
-                              {item.system.WorkItemType}
-                            </Badge>
-                          </td>
-
-                          {/* State */}
-                          <td className="py-2 px-4 border-b border-gray-300 text-left">
-                            <Badge
-                              state={mapState(item.system.State)}
-                              className="w-24"
-                            >
-                              {item.system.State}
-                            </Badge>
-                          </td>
-
-                          {/* QA Resource */}
-                          <td className="py-2 px-4 border-b border-gray-300 text-left">
-                            {item.system.AuthorizedAs.includes("Microsoft.TeamFoundation.System") ? (
-                              <span className="text-gray-500 italic">
-                                No Assigned Resource
-                              </span>
-                            ) : (
-                              item.system.AuthorizedAs.match(/^(.*?)\s*<.*?>$/)?.[1] ||
-                              item.system.AuthorizedAs.split(" ").slice(0, 2).join(" ")
-                            )}
-                          </td>
-
-                          {/* Team */}
-                          <td className="py-2 px-4 border-b border-gray-300 text-left">
-                            <Badge
-                              team={teamMapping[item.costcoTravel.Team] || undefined}
-                              className="w-32"
-                            >
-                              {item.costcoTravel.Team}
-                            </Badge>
-                          </td>
-
-                          {/* Sprint */}
-                          <td className="py-2 px-4 border-b border-gray-300 text-left">
-                            <Badge
-                              sprint={
-                                item.system.IterationPath?.includes("Sprint01")
-                                  ? "current"
-                                  : item.system.IterationPath?.includes("FY25")
-                                  ? "upcoming"
-                                  : "past"
-                              }
-                              className="w-40 tracking-wider"
-                            >
-                              {item.system.IterationPath?.split("\\").pop()}
-                            </Badge>
-                          </td>
-
-                          {/* Tags */}
-                          <td className="py-2 px-4 border-b border-gray-300 text-left">
-                            {item.parsedTags.length > 0 ? (
-                              item.parsedTags.map((tag, index) => (
-                                <Badge key={index} className="mr-1 my-1">
-                                  {tag}
-                                </Badge>
-                              ))
-                            ) : (
-                              <Badge variant="secondary"></Badge>
-                            )}
-                          </td>
-
-                          {/* Actions */}
-                          <td className="py-2 px-4 border-b border-gray-300 text-left">
-                            <button
-                              onClick={() => setSelectedWorkItem(item)}
-                              className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
-                            >
-                              View
-                            </button>
-                          </td>
-                        </tr>
-                      ))
-                    ) : (
-                      <tr>
-                        <td colSpan={9} className="py-4 px-6 border-b border-gray-300 text-center text-gray-500">
-                          No work items found.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Pagination */}
-              {sortedData.length > pageSize && (
-                <div className="flex justify-between items-center mt-4 text-sm">
-                  <button
-                    className="px-4 py-1 border border-gray-300 rounded disabled:opacity-50"
-                    onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
-                    disabled={currentPage === 1}
-                    aria-label="Previous Page"
-                  >
-                    Prev
-                  </button>
-                  <span>
-                    Page {currentPage} of {totalPages}
-                  </span>
-                  <button
-                    className="px-4 py-1 border border-gray-300 rounded disabled:opacity-50"
-                    onClick={() =>
-                      setCurrentPage((prev) => Math.min(prev + 1, totalPages))
-                    }
-                    disabled={currentPage === totalPages}
-                    aria-label="Next Page"
-                  >
-                    Next
-                  </button>
-                </div>
-              )}
+          {/* Calendar Date Range Filter */}
+          <div className="space-y-2">
+            <p className="font-semibold">Date Range</p>
+            <Calendar
+              mode="range"
+              selected={dateRange}
+              onSelect={(val: any) => {
+                if (val && "from" in val) {
+                  setDateRange(val);
+                }
+              }}
+              className="border shadow rounded-md"
+            />
+            <div className="text-xs space-y-1">
+              {dateRange.from && <p>From: {dateRange.from.toDateString()}</p>}
+              {dateRange.to && <p>To: {dateRange.to.toDateString()}</p>}
             </div>
-          )}
-        </div>
-
-        {/* Right side: Tag + Date Range  */}
-        <div className="lg:w-72 p-4 rounded-xl shadow-md space-y-4">
-          <p className="font-semibold text-sm">Filter by Date Range</p>
-          <Calendar
-            mode="range"
-            selected={dateRange}
-            onSelect={(val:any) => {
-              // We check if 'val' is an object with { from?: Date; to?: Date }
-              if (val && "from" in val) {
-                setDateRange(val);
-              }
-            }}
-            className="rounded-md border shadow"
-          />
-
-          <div className="text-xs space-y-1">
-            {dateRange.from && <p>From: {dateRange.from.toDateString()}</p>}
-            {dateRange.to && <p>To: {dateRange.to.toDateString()}</p>}
           </div>
 
           <Separator />
 
-          <Select onValueChange={(value) => setTagFilter(value)}>
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder={tagFilter || "Select a tag"} />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectGroup>
-                <SelectLabel>Tags</SelectLabel>
-                {Object.entries(tagCounts)
-                  .sort((a, b) => b[1] - a[1])
-                  .map(([tag, count]) => (
-                    <SelectItem key={tag} value={tag}>
-                      {tag} - {count}
-                    </SelectItem>
-                  ))}
-              </SelectGroup>
-            </SelectContent>
-          </Select>
+          {/* Exact Tag Filter */}
+          <div className="space-y-2">
+            <Select onValueChange={(value) => setTagFilter(value)}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder={tagFilter || "Exact Tag Filter"} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  <SelectLabel>Tags</SelectLabel>
+                  {Object.entries(tagCounts)
+                    .sort((a, b) => b[1] - a[1])
+                    .map(([tag, count]) => (
+                      <SelectItem key={tag} value={tag}>
+                        {tag} - {count}
+                      </SelectItem>
+                    ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
 
-          {/* Tag partial match search */}
-          <div className="flex flex-col space-y-1">
-            <label className="text-xs font-semibold">Search Tag</label>
-            <input
-              type="text"
-              placeholder="Search Tag"
-              className="px-3 py-2 border border-gray-300 rounded focus:outline-none focus:border-blue-500 w-full"
-              value={tagSearch}
-              onChange={(e) => setTagSearch(e.target.value)}
-            />
+            {/* Clear Tag Filter */}
+            {(tagFilter || tagSearch) && (
+              <button
+                onClick={() => {
+                  setTagFilter("");
+                  setTagSearch("");
+                }}
+                className="text-xs text-blue-400 underline"
+              >
+                Clear Tag Filter
+              </button>
+            )}
           </div>
+        </aside>
 
-          {/* Clear tag-based filters */}
-          {(tagFilter || tagSearch) && (
-            <button
-              onClick={() => {
-                setTagFilter("");
-                setTagSearch("");
-              }}
-              className="mt-2 text-xs text-blue-400 underline"
-            >
-              Clear Tag Filter
-            </button>
+        {/* ----------- Middle Panel: Table + Stats + Pagination ----------- */}
+        <main className="flex-1 flex flex-col">
+          {/* Stats Section */}
+          <section className="border-b p-4 flex flex-wrap gap-4">
+            <StatisticCard title="Total Items" value={data.length} />
+            <StatisticCard title="Open Bugs" value={countByState("Open", data)} />
+            <StatisticCard
+              title="In Progress"
+              value={countByState("In Progress", data)}
+            />
+            <StatisticCard title="Completed" value={countByState("Closed", data)} />
+          </section>
+
+          {/* Loading / Error */}
+          {loading && (
+            <div className="flex-1 flex justify-center items-center">
+              <Loading />
+            </div>
           )}
-        </div>
+          {error && !loading && (
+            <div className="flex-1 flex justify-center items-center text-red-500">
+              <p>{error}</p>
+            </div>
+          )}
+
+          {/* Table Section */}
+          {!loading && !error && (
+            <section className="flex-1 overflow-x-auto p-4">
+              <table className="min-w-full text-xs md:text-sm border rounded-md">
+                <thead>
+                  <tr className="border-b text-left uppercase">
+                    {[
+                      { key: 'checkbox', label: '' },
+                      { key: "id", label: "ID" },
+                      { key: "title", label: "Title" },
+                      { key: "workItemType", label: "Type" },
+                      { key: "state", label: "State" },
+                      { key: "AuthorizedAs", label: "QA Resource" },
+                      { key: "team", label: "Team" },
+                      { key: "sprint", label: "Sprint" },
+                      { key: "tags", label: "Tags" },
+                      { key: "", label: "Actions" },
+                    ].map((col) => (
+                      <th
+                        key={col.key}
+                        onClick={col.key ? () => handleSort(col.key as SortKey) : undefined}
+                        className={cn(
+                          "py-2 px-3 font-semibold cursor-pointer select-none",
+                          col.key && "underline decoration-dotted"
+                        )}
+                        style={{ whiteSpace: "nowrap" }}
+                        aria-sort={
+                          sortConfig?.key === col.key
+                            ? sortConfig.direction === "ascending"
+                              ? "ascending"
+                              : "descending"
+                            : "none"
+                        }
+                      >
+                        <div className="flex items-center space-x-1">
+                          <span>{col.label}</span>
+                          {col.key && sortConfig?.key === col.key && (
+                            sortConfig.direction === "ascending" ? (
+                              <ChevronUp size={16} />
+                            ) : (
+                              <ChevronDown size={16} />
+                            )
+                          )}
+                          {col.key && sortConfig?.key !== col.key && (
+                            <ChevronDown
+                              size={16}
+                              className="opacity-0 group-hover:opacity-100 transition-opacity"
+                            />
+                          )}
+                        </div>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {displayData.length > 0 ? (
+                    displayData.map((item) => (
+                      <tr
+                        key={item.id}
+                        className="border-b hover:bg-gray-50 transition-colors"
+                      >
+                        <td className="py-2 px-3">
+                          <Checkbox />
+                        </td>
+
+                        <td className="py-2 px-3">{item.id}</td>
+                        <td className="py-2 px-3">
+                          <a
+                            href={`${tfsBaseUrl}/Work%20Items/_workitems/edit/${item.id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="font-bold text-blue-500 hover:underline"
+                          >
+                            {item.system.Title}
+                          </a>
+                        </td>
+                        <td className="py-2 px-3">
+                          <Badge
+                            ticketType={mapWorkItemType(item.system.WorkItemType)}
+                            className="w-20"
+                          >
+                            {item.system.WorkItemType}
+                          </Badge>
+                        </td>
+                        <td className="py-2 px-3">
+                          <Badge
+                            state={mapState(item.system.State)}
+                            className="w-20 text-center"
+                          >
+                            {item.system.State}
+                          </Badge>
+                        </td>
+                        <td className="py-2 px-3">
+                          {item.system.AuthorizedAs.includes("Microsoft.TeamFoundation.System") ? (
+                            <span className="text-gray-500 italic">
+                              No Resource
+                            </span>
+                          ) : (
+                            item.system.AuthorizedAs.match(/^(.*?)\s*<.*?>$/)?.[1] ||
+                            item.system.AuthorizedAs.split(" ").slice(0, 2).join(" ")
+                          )}
+                        </td>
+                        <td className="py-2 px-3">
+                          <Badge
+                            team={teamMapping[item.costcoTravel.Team] || undefined}
+                            className="w-24"
+                          >
+                            {item.costcoTravel.Team}
+                          </Badge>
+                        </td>
+                        <td className="py-2 px-3">
+                          <Badge
+                            sprint={
+                              item.system.IterationPath?.includes("Sprint01")
+                                ? "current"
+                                : item.system.IterationPath?.includes("FY25")
+                                ? "upcoming"
+                                : "past"
+                            }
+                            className="w-28 text-center"
+                          >
+                            {item.system.IterationPath?.split("\\").pop()}
+                          </Badge>
+                        </td>
+                        <td className="py-2 px-3">
+                          {item.parsedTags.length > 0 ? (
+                            item.parsedTags.map((tag, index) => (
+                              <Badge key={index} className="mr-1 my-1">
+                                {tag}
+                              </Badge>
+                            ))
+                          ) : (
+                            <Badge variant="secondary">—</Badge>
+                          )}
+                        </td>
+                        <td className="py-2 px-3">
+                          <button
+                            onClick={() => setSelectedWorkItem(item)}
+                            className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors text-xs"
+                          >
+                            View
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={9} className="py-4 text-center text-gray-500">
+                        No work items found.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </section>
+          )}
+
+          {/* Pagination */}
+          {!loading && !error && sortedData.length > pageSize && (
+            <section className="p-4 border-t">
+              <div className="flex flex-col md:flex-row justify-between items-center gap-2 text-xs md:text-sm">
+                <div>
+                  <span>
+                    Showing {(currentPage - 1) * pageSize + 1} to{" "}
+                    {Math.min(currentPage * pageSize, sortedData.length)} of{" "}
+                    {sortedData.length} entries
+                  </span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <button
+                    className="px-3 py-1 border rounded disabled:opacity-50"
+                    onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                    disabled={currentPage === 1}
+                  >
+                    Prev
+                  </button>
+                  <input
+                    type="number"
+                    min={1}
+                    max={totalPages}
+                    value={currentPage}
+                    onChange={(e) => {
+                      const page = Number(e.target.value);
+                      if (page >= 1 && page <= totalPages) {
+                        setCurrentPage(page);
+                      }
+                    }}
+                    className="w-16 px-2 py-1 border rounded focus:outline-none"
+                  />
+                  <span>of {totalPages}</span>
+                  <button
+                    className="px-3 py-1 border rounded disabled:opacity-50"
+                    onClick={() =>
+                      setCurrentPage((prev) => Math.min(prev + 1, totalPages))
+                    }
+                    disabled={currentPage === totalPages}
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            </section>
+          )}
+        </main>
       </div>
 
-      {/* Modal */}
+      {/* ----------------------- Modal Section ----------------------- */}
       {selectedWorkItem && (
         <BugModal
           selectedWorkItem={selectedWorkItem}
