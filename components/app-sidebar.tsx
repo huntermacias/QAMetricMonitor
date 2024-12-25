@@ -3,15 +3,7 @@
 import React from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import {
-  Bug,
-  Building2,
-  ChartArea,
-  Home,
-  Medal,
-  Settings,
-  SquareStack,
-} from "lucide-react"
+
 
 import {
   Sidebar,
@@ -27,48 +19,8 @@ import {
   SidebarSeparator,
 } from "@/components/ui/sidebar"
 import { ModeToggle } from "./theme-toggle"
+import { adminItems, bugPageItems, items } from "@/resources/sidebar-resources"
 
-
-const items = [
-  {
-    title: "Home",
-    url: "/",
-    icon: Home,
-  },
-  {
-    title: "Bugs",
-    url: "/bugs",
-    icon: Bug,
-  },
-  {
-    title: "Jenkins Build Data",
-    url: "/jenkins",
-    icon: Building2,
-  },
-  {
-    title: "CRT",
-    url: "/crt",
-    icon: ChartArea,
-  },
-  {
-    title: "PR Leaderboard",
-    url: "/leaderboard",
-    icon: Medal,
-  },
-  {
-    title: "Sprint Tracker",
-    url: "/sprint-tracker",
-    icon: SquareStack,
-  },
-]
-
-const adminItems = [
-  {
-    title: "Settings",
-    url: "/settings",
-    icon: Settings,
-  },
-]
 
 export function AppSidebar() {
   const pathname = usePathname()
@@ -89,7 +41,7 @@ export function AppSidebar() {
           <SidebarGroupLabel>Application</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {items.map((item) => {
+              {bugPageItems.map((item) => {
                 const isActive = pathname === item.url
                 return (
                   <SidebarMenuItem key={item.title}>

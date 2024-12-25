@@ -79,6 +79,7 @@ export async function GET() {
     hotelSearchIngress: '77d8b832-5366-45af-a84d-0d9a3cd5cfb8', 
     odysseusCruiseDataGenerator: '7faf8b49-851c-425d-b796-ff7acbdebce4',
     qaPerf: '24f737fe-451a-4aa0-90fc-fc3427f6fa39',
+    routehappyServiceTest: '19d14987-34f8-444f-aaa0-49ed55e3e7cc',
     core: '695208e1-46b6-415a-974c-b26e067c8ab4', // DEV
     consumer: 'e4ac12a4-c640-4637-9843-83b66e2f5e7c', // DEV
   };

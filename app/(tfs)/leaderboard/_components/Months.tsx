@@ -47,7 +47,7 @@ export const Months: FC<MonthsProps> = ({ data }) => {
   // Calculate dynamic spacing for month labels
   const weekWidth = 15; // Width of each week column (adjust as needed)
   return (
-    <div className="absolute -top-8 left-0 flex mt-4">
+    <div className="absolute -top-8 left-0 flex mt-4 ga">
       {monthLabels.map((label, index) => (
         <div
           key={index}

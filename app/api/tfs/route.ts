@@ -2,9 +2,7 @@ import { NextResponse } from 'next/server'
 import axios from 'axios'
 import https from 'https'
 
-// ---------------------------------------------
-// 1) Consolidated Interfaces
-// ---------------------------------------------
+
 
 // Minimal sub-interfaces for each field group:
 interface SystemFields {
@@ -89,7 +87,7 @@ interface WorkItem {
 }
 
 // ---------------------------------------------
-// 2) Helper to parse "John Smith <PACIFIC\\john.smith>" => "John Smith"
+// 2) Helper to parse "Hunter Macias <PACIFIC\\hunter.macias>" => "Hunter Macias"
 // ---------------------------------------------
 function extractDisplayName(displayName: string): string {
   if (typeof displayName !== 'string') return 'Unassigned'
@@ -149,7 +147,7 @@ export async function GET() {
       return NextResponse.json([], { status: 200 })
     }
 
-    // Step 2: Fetch detailed info for each work item
+    // ------------------------------------ FETCH DETAILED INFORMATION ABOUT EACH WORK ITEM ------------------------------------
     const workItemDetailsPromises = workItems.map(
       async (item: { id: number; url: string }) => {
         const detailUrl = `${tfsBaseUrl}/_apis/wit/workitems/${item.id}?$expand=All&api-version=1.0`
@@ -176,7 +174,13 @@ export async function GET() {
               AuthorizedDate: fields['System.AuthorizedDate'] ?? '',
               RevisedDate: fields['System.RevisedDate'] ?? '',
               IterationId: fields['System.IterationId'] ?? 0,
-              IterationPath: fields['System.IterationPath'] ?? '',
+              /**
+               * "Work Items\\FY25\\FY25_P05\\FY25_P05_Sprint01" => FY25_P05_Sprint01
+               * "Work Items\\FY25\\FY25_P05\\FY25_P05_Sprint01". split("\\") === [Work Items, FY25, FY25_P05_Sprint01]
+               * [Work Items, FY25, FY25_P05_Sprint01].pop() === FY25_P05_Sprint01 or FY25_PO6_SPRINT02 (Planning)
+               * FY25_PO6_SPRINT02 (Planning).replace('(Planning)', '[P]') = FY25_PO6_SPRINT02 [P]
+               * */ 
+              IterationPath: fields['System.IterationPath'] ? fields['System.IterationPath'].split('\\').pop().replace('(Planning)', '[P]') ?? '' : '',
               IterationLevel1: fields['System.IterationLevel1'] ?? '',
               IterationLevel2: fields['System.IterationLevel2'] ?? '',
               IterationLevel3: fields['System.IterationLevel3'] ?? '',

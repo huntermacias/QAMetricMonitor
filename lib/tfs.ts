@@ -43,19 +43,44 @@ export async function executeWiql(query: string) {
 export async function fetchWorkItemDetails(ids: number[]) {
   if (ids.length === 0) return [];
 
-  const idsChunked = chunkArray(ids, 200); // TFS API may have a limit on the number of IDs per request
+  // List of fields to fetch, including IterationPath
+  const fields = [
+    'System.Id',
+    'System.WorkItemType',
+    'System.Title',
+    'System.AssignedTo',
+    'System.State',
+    'System.Tags',
+    'System.IterationPath', 
+    'System.TeamProject',
+    'Microsoft.VSTS.Common.ClosedDate',
+    'System.CreatedDate',
+    'System.CreatedBy',
+    'Microsoft.VSTS.Common.Priority',
+  ].join(',');
+
+  const idsChunked = chunkArray(ids, 200); 
   const allDetails = [];
 
   for (const chunk of idsChunked) {
     const idsString = chunk.join(',');
-    const detailUrl = `${tfsBaseUrl}/_apis/wit/workitems?ids=${idsString}&$expand=Relations&api-version=1.0`;
+    const detailUrl = `${tfsBaseUrl}/_apis/wit/workitems?ids=${idsString}&fields=${fields}&api-version=4.1`;
 
-    const response = await axios.get(detailUrl, { headers, httpsAgent });
-    allDetails.push(...response.data.value);
+    try {
+      const response = await axios.get(detailUrl, { headers, httpsAgent });
+      if (response.data?.value?.length) {
+        allDetails.push(...response.data.value);
+      } else {
+        console.warn(`No details found for IDs: ${idsString}`);
+      }
+    } catch (error: any) {
+      console.error(`Error fetching details for IDs ${idsString}:`, error.message);
+    }
   }
 
   return allDetails;
 }
+
 
 /**
  * Compute bug metrics for a given feature.
@@ -141,16 +166,13 @@ export async function countBugsForFeature(
     const type = fields['System.WorkItemType'];
     const state = fields['System.State'];
     const createdDate = new Date(fields['System.CreatedDate']);
-    const closedDate =
-      fields['Microsoft.VSTS.Common.ClosedDate'];
+    const closedDate = fields['Microsoft.VSTS.Common.ClosedDate'];
     const changedDate = new Date(fields['System.ChangedDate']);
+    const iterationPath = fields['System.IterationPath']
 
     if (type === 'Bug') {
-      if (
-        ['Active', 'New', 'In Progress', 'Committed', 'Planned'].includes(
-          state
-        )
-      ) {
+      const availableStates = ['Active', 'New', 'In Progress', 'Committed', 'Planned'];
+      if (availableStates.includes(state)) {
         // Open bug
         openBugCount++;
         const now = new Date();
@@ -171,7 +193,7 @@ export async function countBugsForFeature(
         // Closed bug
         closedBugCount++;
         const closeDate = closedDate || changedDate;
-        console.log('closed', closedDate)
+        //console.log('closed', closedDate)
         const durationDays =
           (closeDate - createdDate.getTime()) /
           (1000 * 60 * 60 * 24);

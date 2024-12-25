@@ -132,8 +132,8 @@ const BugCountChart: React.FC = () => {
   return (
     <Card className="w-full shadow-lg rounded-xl">
       <CardHeader>
-        <CardTitle className="text-xl font-semibold text-white">Bug Count by Feature</CardTitle>
-        <CardDescription className="text-gray-400">
+        <CardTitle className="text-xl font-semibold">Bug Count by Feature</CardTitle>
+        <CardDescription className="">
           Feature-specific open and closed bug counts
         </CardDescription>
       </CardHeader>
@@ -191,14 +191,14 @@ const BugCountChart: React.FC = () => {
           </ResponsiveContainer>
         )}
         {!isLoading && !isError && chartData.length === 0 && (
-          <p className="text-gray-400">No bug data available.</p>
+          <p className="text-sm text-muted-foreground animate-pulse transition-all">No bug data available.</p>
         )}
       </CardContent>
       <CardFooter className="flex flex-col items-start gap-2 text-sm">
-        <div className="flex items-center gap-2 font-medium text-[#FFD700]">
-          Total Bugs: {totalBugs} <TrendingUp className="h-4 w-4" />
+        <div className="flex items-center gap-2 font-medium text-xl">
+          Total Bugs: {totalBugs} <TrendingUp className="h-6 w-6 text-red-500" />
         </div>
-        <div className="leading-none text-gray-500">
+        <div className="leading-none text-muted-foreground">
           Scroll to view all features and their bug counts
         </div>
       </CardFooter>

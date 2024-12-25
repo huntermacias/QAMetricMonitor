@@ -45,14 +45,14 @@ export const ContributionGrid: FC<ContributionGridProps> = ({ data }) => {
     <div className="relative">
       <div className="flex space-x-1">
         {weeks.map((week, weekIndex) => (
-          <div key={weekIndex} className="flex flex-col space-y-1">
+          <div key={weekIndex} className="flex flex-col space-y-1 border">
             {week.map((day) => {
               const dateStr = format(day, 'yyyy-MM-dd');
               const count = data[dateStr] || 0;
               return (
                 <div
                   key={dateStr}
-                  className={`w-4 h-4 rounded-sm ${getCellColor(
+                  className={`w-4 h-4 rounded-sm ring ring-1 ring-white/10 ${getCellColor(
                     count
                   )} relative cursor-pointer`}
                   onMouseEnter={() => setActiveTooltip(dateStr)}
@@ -64,7 +64,7 @@ export const ContributionGrid: FC<ContributionGridProps> = ({ data }) => {
                   )}`}
                 >
                   {activeTooltip === dateStr && (
-                    <div className="absolute bottom-full mb-2 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white text-xs rounded py-1 px-2 z-10 whitespace-nowrap">
+                    <div className="absolute bottom-full mb-2 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white text-xs rounded py-1 px-2 z-100 whitespace-nowrap">
                       <strong>
                         {count} contribution{count !== 1 ? 's' : ''}
                       </strong>
