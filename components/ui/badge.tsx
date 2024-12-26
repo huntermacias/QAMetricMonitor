@@ -24,7 +24,7 @@ const badgeVariants = cva(
         epic: "bg-purple-600/50 text-white",
       },
       state: {
-        inprogress: "bg-orange-500/70 text-white",
+        inprogress: "bg-orange-500/30 border border-yellow-400 text-white",
         accepted: "bg-teal-500/70 text-white",
         done: "bg-green-500/70 text-white",
         committed: "bg-blue-500/70 text-white",
@@ -62,6 +62,7 @@ function Badge({ className, variant, ticketType, state, team, sprint, ...props }
         badgeVariants({ variant, ticketType, state, team, sprint }),
         className
       )}
+
       {...props}
     />
   );

@@ -145,8 +145,8 @@ const TFSPage: FC = () => {
             const rawTags = item.system.tags || "";
             const parsedTags = rawTags
               .split(";")
-              .map((t:any) => t.trim())
-              .filter((t:any) => t.length > 0);
+              .map((t: any) => t.trim())
+              .filter((t: any) => t.length > 0);
             return { ...item, parsedTags };
           });
           setData(withParsedTags);
@@ -185,8 +185,8 @@ const TFSPage: FC = () => {
             const rawTags = item.system.tags || "";
             const parsedTags = rawTags
               .split(";")
-              .map((t:any) => t.trim())
-              .filter((t:any) => t.length > 0);
+              .map((t: any) => t.trim())
+              .filter((t: any) => t.length > 0);
             return { ...item, parsedTags };
           });
           setData(withParsedTags);
@@ -628,13 +628,10 @@ const TFSPage: FC = () => {
         {/* ----------- Middle Panel: Table + Stats + Pagination ----------- */}
         <main className="flex-1 flex flex-col">
           {/* Stats Section */}
-          <section className="border-b p-4 flex flex-wrap gap-4">
+          <section className="border-b p-4 flex flex-wrap gap-4 justify-center">
             <StatisticCard title="Total Items" value={data.length} />
             <StatisticCard title="Open Bugs" value={countByState("Open", data)} />
-            <StatisticCard
-              title="In Progress"
-              value={countByState("In Progress", data)}
-            />
+            <StatisticCard title="In Progress" value={countByState("In Progress", data)} />
             <StatisticCard title="Completed" value={countByState("Closed", data)} />
           </section>
 
@@ -657,7 +654,7 @@ const TFSPage: FC = () => {
                 <thead>
                   <tr className="border-b text-left uppercase">
                     {[
-                      { key: 'checkbox', label: '' },
+                      { key: 'checkbox', label: 'Select' },
                       { key: "id", label: "ID" },
                       { key: "title", label: "Title" },
                       { key: "workItemType", label: "Type" },
@@ -735,6 +732,7 @@ const TFSPage: FC = () => {
                           </Badge>
                         </td>
                         <td className="py-2 px-3">
+
                           <Badge
                             state={mapState(item.system.State)}
                             className="w-20 text-center"
@@ -766,8 +764,8 @@ const TFSPage: FC = () => {
                               item.system.IterationPath?.includes("Sprint01")
                                 ? "current"
                                 : item.system.IterationPath?.includes("FY25")
-                                ? "upcoming"
-                                : "past"
+                                  ? "upcoming"
+                                  : "past"
                             }
                             className="w-28 text-center"
                           >
