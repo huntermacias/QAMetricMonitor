@@ -34,7 +34,7 @@ docker build -t QAMetricMonitor .
 ```sh 
 docker run -p 3000:3000 QAMetricMonitor
 ```
-    | **OR** Using Docker Compose: 
+**OR** Using Docker Compose: 
 ```sh 
 docker-compose up
 ```
