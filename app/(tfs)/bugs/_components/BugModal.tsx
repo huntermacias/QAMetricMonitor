@@ -28,7 +28,7 @@ const BugModal = ({selectedWorkItem, setSelectedWorkItem}: Props) => {
                   <strong>Reason:</strong> {selectedWorkItem.system.Reason}
                 </p>
                 <p>
-                  <strong>QA Resource:</strong> {selectedWorkItem.system.AuthorizedAs}
+                  <strong>Assigned To:</strong> {selectedWorkItem.system.AuthorizedAs}
                 </p>
                 <p>
                   <strong>Team:</strong> {selectedWorkItem.costcoTravel.Team}

@@ -31,13 +31,15 @@ const httpsAgent = new https.Agent({
 
 // Sample job list
 const jobList: string[] = [
-  '00_Shopping_UI_CRT_Agent_Tests',
-  '01_Shopping_UI_CRT_Consumer_Part1',
-  '02_Shopping_UI_CRT_Consumer_Part2',
-  '03_Shopping_UI_CRT_Consumer_Part3',
-  '00_Shopping_API_APIConnect_Cruise',
-  '00_Shopping_API_Service_Odysseus_Cruise',
-  '01_Shopping_API_Service_Derby_Tickets',
+  '01_Shopping_UI_CRT_Consumer_Part1', // Shopping Team 1 & 8
+  '01_Shopping_API_Service_Derby_Tickets', // Shopping Team 1 & 8
+  '02_Shopping_UI_CRT_Consumer_Part2', // Shopping Team 2 & 4
+  '00_Shopping_API_Service_Odysseus_Cruise', // Shopping Team 2 & 4
+  '03_Shopping_UI_CRT_Consumer_Part3', // Shopping Team 3 & 5
+  '03_Shopping_API_Service_Hotel_Search', // Shopping Team 3 & 5
+  '00_Shopping_UI_CRT_Agent_Tests', // Shopping Team 6 & 7
+  '00_Shopping_API_APIConnect_Cruise', // Shopping Team 6 & 7
+  
 ]
 
 // Interfaces
@@ -304,7 +306,10 @@ async function processAllBuilds(): Promise<ProcessedBuildData[]> {
 export async function GET() {
   try {
     const buildData = await processAllBuilds()
-    return NextResponse.json(buildData, { status: 200 })
+    const response = NextResponse.json(buildData, { status: 200 })
+    
+    response.headers.set('Cache-Control', 'public, max-age=300, immutable'); // Cache for 5 minutes
+    return response
   } catch (error: any) {
     console.error('❌ Error in API route:', error.message)
     return NextResponse.json({ error: error.message }, { status: 500 })

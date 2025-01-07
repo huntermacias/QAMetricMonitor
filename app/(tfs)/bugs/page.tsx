@@ -429,7 +429,7 @@ const TFSPage: FC = () => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectGroup>
-                    <SelectLabel>QA Resource</SelectLabel>
+                    <SelectLabel>Assigned To</SelectLabel>
                     <SelectItem value="N/A">All Assigned</SelectItem>
                     {getUniqueValues("AuthorizedAs").map((authAs) => (
                       <SelectItem key={authAs} value={authAs}>
@@ -520,7 +520,7 @@ const TFSPage: FC = () => {
 
           {/* Loading / Error */}
           {loading && (
-            <div className="flex justify-center items-center">
+            <div className="flex w-full justify-center items-center">
               <Loading />
             </div>
           )}
