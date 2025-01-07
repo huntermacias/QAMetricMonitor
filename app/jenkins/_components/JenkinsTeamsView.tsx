@@ -51,7 +51,7 @@ export default function JenkinsTeamsView({ builds }: any) {
 
   // Derive unique job names from builds for the filter dropdown
   const uniqueJobNames = useMemo(() => {
-    const jobNames = builds.map((build) => build.trimmedDisplayName);
+    const jobNames = builds.map((build:any) => build.trimmedDisplayName);
     return Array.from(new Set(jobNames));
   }, [builds]);
 
@@ -106,7 +106,7 @@ export default function JenkinsTeamsView({ builds }: any) {
             <SelectContent>
               <SelectGroup>
                 <SelectItem value="All">All</SelectItem>
-                {uniqueJobNames.map((job, index) => (
+                {uniqueJobNames.map((job:any, index) => (
                   <SelectItem key={index} value={job}>
                     {job}
                   </SelectItem>
