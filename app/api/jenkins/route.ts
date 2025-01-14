@@ -29,16 +29,17 @@ const httpsAgent = new https.Agent({
   rejectUnauthorized: false,
 })
 
-// Sample job list
-const jobList: string[] = [
-  '00_Shopping_UI_CRT_Agent_Tests',
-  '01_Shopping_UI_CRT_Consumer_Part1',
-  '02_Shopping_UI_CRT_Consumer_Part2',
-  '03_Shopping_UI_CRT_Consumer_Part3',
-  '00_Shopping_API_APIConnect_Cruise',
-  '00_Shopping_API_Service_Odysseus_Cruise',
-  '01_Shopping_API_Service_Derby_Tickets',
-]
+// Add builds to this to fetch data from each build
+const jobList = [
+  '00_Shopping_UI_CRT_Agent_Tests', // Team 6 & 7
+  '01_Shopping_UI_CRT_Consumer_Part1', // Team 1 & 8
+  '02_Shopping_UI_CRT_Consumer_Part2', // Team 2 & 4
+  '03_Shopping_UI_CRT_Consumer_Part3', // Team 3 & 5
+  '03_Shopping_API_Service_Hotel_Search', // Team 3 & 5
+  '00_Shopping_API_APIConnect_Cruise', // Team 6 & 7
+  '00_Shopping_API_Service_Odysseus_Cruise', // Team 2 & 4
+  '01_Shopping_API_Service_Derby_Tickets', // Team 1 & 8
+];
 
 // Interfaces
 interface Cause {

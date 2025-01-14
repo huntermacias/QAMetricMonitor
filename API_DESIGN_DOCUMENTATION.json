@@ -1,0 +1,69 @@
+{
+    "api/tfs/teams": {
+        "api": "http://localhost:3000/api/tfs/teams/getMembers",
+        "live_api": "https://tfs.pacific.costcotravel.com/tfs/TestAutomation/_apis/projects/baac0adf-5cc1-40ae-a92f-c9adc45fd198/teams/5191c4ff-b34e-414d-9ef5-ee26cc01ffe2/members?api-version=4.1", 
+        "mock_response":   {
+            "identity": {
+              "displayName": "Hunter Macias",
+              "url": "https://tfs.pacific.costcotravel.com/tfs/TestAutomation/_apis/Identities/3e9bcd43-8a35-491c-81df-290cc9a3aec2",
+              "id": "3e9bcd43-8a35-491c-81df-290cc9a3aec2",
+              "uniqueName": "PACIFIC\\hunter.rocha",
+              "imageUrl": "https://tfs.pacific.costcotravel.com/tfs/TestAutomation/_api/_common/identityImage?id=3e9bcd43-8a35-491c-81df-290cc9a3aec2"
+            }
+        },
+        "": {}
+    }, 
+
+
+    
+    "/api/tfs": {
+        "api": "http://localhost:3000/api/tfs", 
+        "live_api": "https://tfs.pacific.costcotravel.com/tfs/CostcoTravel/_apis/wit/wiql?api-version=2.0",
+        "mock_response": [
+            {
+                "id": 627512,
+                "url": "https://tfs.pacific.costcotravel.com/tfs/CostcoTravel/_apis/wit/workItems/627512",
+                "relations": [
+                  {
+                    "rel": "System.LinkTypes.Hierarchy-Reverse",
+                    "url": "https://tfs.pacific.costcotravel.com/tfs/CostcoTravel/_apis/wit/workItems/579636",
+                    "attributes": {
+                      "isLocked": false
+                    }
+                  }
+                ],
+                "system": {
+                  "Id": 627512,
+                  "AreaId": 2122,
+                  "AreaPath": "Work Items\\Member Journey\\Shopping\\Shopping",
+                  "TeamProject": "Work Items",
+                  "NodeName": "Shopping",
+                  "AuthorizedDate": "2025-01-14T00:34:03.293Z",
+                  "RevisedDate": "9999-01-01T00:00:00Z",
+                  "IterationId": 2474,
+                  "IterationPath": "FY25_P05_Sprint02",
+                  "WorkItemType": "Task",
+                  "State": "Done",
+                  "AssignedTo": "Unassigned",
+                  "CreatedDate": "2025-01-13T16:55:10.683Z",
+                  "CreatedBy": "Vladyslav Prusak \u003CPACIFIC\\vladyslav.prusak\u003E",
+                  "AuthorizedAs": "Vladyslav Prusak \u003CPACIFIC\\vladyslav.prusak\u003E",
+                  "PersonId": 13242,
+                  "Title": "QA: Test Case Creation",
+                  "tags": ""
+                },
+                "microsoftVSTSCommon": {
+                  "ClosedDate": "2025-01-14T00:34:03.293Z"
+                },
+                "microsoftVSTSCommonScheduling": {
+            
+                },
+                "costcoTravel": {
+                  "Team": "Shopping Team 03"
+                }
+              }
+        ]
+    }
+
+}
+

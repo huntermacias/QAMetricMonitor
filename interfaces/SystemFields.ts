@@ -33,5 +33,6 @@ export interface SystemFields {
     BoardColumn: string;
     BoardColumnDone: boolean;
     tags: any;
+    relations: any;
   }
   

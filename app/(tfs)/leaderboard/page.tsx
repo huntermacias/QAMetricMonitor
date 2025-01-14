@@ -140,7 +140,7 @@ const RankingPage: React.FC = () => {
       </section>
 
       {/* Top 3 Podium Section */}
-      <section className="relative z-10 mb-16">
+      <section className="relative mb-16">
         <h2 className="text-3xl font-bold text-center mb-6 tracking-wider underline decoration-wavy decoration-yellow-300">
           🏅 Top Contributors 🏅
         </h2>
@@ -161,7 +161,7 @@ const RankingPage: React.FC = () => {
             return (
               <motion.div
                 key={contributor.name}
-                className={`w-64 p-4 rounded-lg border shadow-md hover:scale-105 transform transition-all duration-300 ${colorClass}`}
+                className={`w-44 h-44 p-4 rounded-lg border shadow-md hover:scale-105 transform transition-all duration-300 ${colorClass}`}
                 initial={{ y: -20, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
                 transition={{ delay: index * 0.2 + 0.5 }}
@@ -182,7 +182,7 @@ const RankingPage: React.FC = () => {
                 <div className="mt-4 text-sm space-y-1">
                   <p>Positive Votes: {contributor.positiveVotes}</p>
                   <p>Unique Branches: {contributor.uniqueBranches}</p>
-                  <p>Avg Merge Time: {contributor.avgTimeToMerge} hrs</p>
+                  {/* <p>Avg Merge Time: {contributor.avgTimeToMerge} hrs</p> */}
                 </div>
               </motion.div>
             );
@@ -191,11 +191,11 @@ const RankingPage: React.FC = () => {
       </section>
 
       {/* Contribution Graph */}
-      <section className="relative z-10 mb-16">
+      <section className="relative z-0 mb-16">
         <h2 className="text-2xl font-semibold text-center mb-6 underline decoration-dotted">
           📈 Contribution Activity
         </h2>
-        <div className="flex justify-center items-start overflow-auto p-8  rounded-lg shadow-2xl bg-white/5 backdrop-blur-sm">
+        <div className="flex justify-center items-start overflow-auto p-8 rounded-lg shadow-2xl bg-white/5 backdrop-blur-sm">
           <Weekdays />
           <div className="relative">
             <Months data={aggregatedCommits} />
@@ -208,7 +208,7 @@ const RankingPage: React.FC = () => {
       </section>
 
       {/* All Contributors Section */}
-      <section className="relative z-10">
+      <section className="relative">
         <h2 className="text-3xl font-bold text-center mb-6 tracking-wider text-pink-200 underline decoration-slice decoration-pink-400">
           All Contributors
         </h2>

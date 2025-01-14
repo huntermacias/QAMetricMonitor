@@ -118,6 +118,12 @@ The response contains:
 - **Description**: A brief description of the team.
 - **Project ID**: The project the team is associated with.
 
+### **4a. Get Team Members: 
+
+GET https://{instance}/{collection}/_apis/projects/{projectId}/teams/{teamId}/members?api-version=4.1
+https://tfs.pacific.costcotravel.com/tfs/TestAutomation/_apis/projects/baac0adf-5cc1-40ae-a92f-c9adc45fd198/teams/5191c4ff-b34e-414d-9ef5-ee26cc01ffe2/members?api-version=4.1
+
+
 ---
 
 ## **5. Get Commits**

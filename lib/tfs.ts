@@ -65,7 +65,6 @@ export async function fetchWorkItemDetails(ids: number[]) {
   for (const chunk of idsChunked) {
     const idsString = chunk.join(',');
     const detailUrl = `${tfsBaseUrl}/_apis/wit/workitems?ids=${idsString}&fields=${fields}&api-version=4.1`;
-
     try {
       const response = await axios.get(detailUrl, { headers, httpsAgent });
       if (response.data?.value?.length) {
