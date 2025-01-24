@@ -3,6 +3,7 @@
 import { NextResponse } from 'next/server';
 import axios from 'axios';
 import https from 'https';
+import { JenkinsResponse } from '../types';
 
 export const runtime = 'nodejs';
 
@@ -31,17 +32,6 @@ const jobList: string[] = [
   
 ];
 
-// Interfaces
-interface JenkinsJob {
-  name: string;
-  url: string;
-  color: string;
-}
-
-interface JenkinsResponse {
-  description: string | null;
-  jobs: JenkinsJob[];
-}
 
 /**
  * Fetch job details from Jenkins.
@@ -87,16 +77,8 @@ async function processAllJobs(): Promise<void> {
  */
 export async function GET() {
   try {
-    // Fetch job statuses
     const jobData = await fetchJobs();
-
-    // Optionally process all jobs (if additional logic is needed)
     await processAllJobs();
-
-
-
-
-    // Return job data in the response
     return NextResponse.json({ message: 'success', data: jobData.jobs }, { status: 200 });
   } catch (error: any) {
     console.error('❌ Error in API route:', error.message);

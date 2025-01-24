@@ -1,18 +1,23 @@
-import { FC, useState } from 'react';
-import { format, parseISO, startOfWeek } from 'date-fns';
+import { FC, useState } from "react";
+import { format, parseISO, startOfWeek } from "date-fns";
+import { motion } from "framer-motion";
+
+import { Tooltip } from "./Tooltip";
 
 type ContributionGridProps = {
   data: Record<string, number>; // { '2024-01-01': 5, '2024-01-02': 0, ... }
 };
 
 export const ContributionGrid: FC<ContributionGridProps> = ({ data }) => {
-  const [activeTooltip, setActiveTooltip] = useState<string | null>(null);
+  const [activeDate, setActiveDate] = useState<string | null>(null);
 
+  // Not a lot of commits happen a day so the counts are usually small
   const getCellColor = (count: number) => {
-    if (count === 0) return 'bg-[#161b22]';
-    if (count < 2) return 'bg-[#0e4429]';
-    if (count < 3) return 'bg-[#26a641]';
-    return 'bg-[#39d353]';
+    if (count === 0) return "bg-[#161b22]";
+    if (count < 3) return "bg-[#0e4429]";
+    if (count < 5) return "bg-[#006d32]";
+    if (count < 10) return "bg-[#26a641]";
+    return "bg-[#39d353]";
   };
 
   // Convert data keys to Date objects and sort them
@@ -41,42 +46,75 @@ export const ContributionGrid: FC<ContributionGridProps> = ({ data }) => {
     }
   });
 
+  // Framer Motion variants for a staggered grid load
+  const gridVariants = {
+    hidden: { opacity: 0 },
+    show: {
+      opacity: 1,
+      transition: {
+        staggerChildren: 0.02,
+      },
+    },
+  };
+
+  const cellVariants = {
+    hidden: { scale: 0.5, opacity: 0 },
+    show: {
+      scale: 1,
+      opacity: 1,
+      transition: {
+        type: "spring",
+        stiffness: 150,
+        damping: 12,
+      },
+    },
+  };
+
   return (
-    <div className="relative">
+    <motion.div
+      className="relative"
+      variants={gridVariants}
+      initial="hidden"
+      animate="show"
+    >
       <div className="flex space-x-1">
         {weeks.map((week, weekIndex) => (
-          <div key={weekIndex} className="flex flex-col space-y-1 border">
+          <motion.div
+            key={weekIndex}
+            className="flex flex-col space-y-1"
+            variants={gridVariants}
+          >
             {week.map((day) => {
-              const dateStr = format(day, 'yyyy-MM-dd');
+              const dateStr = format(day, "yyyy-MM-dd");
               const count = data[dateStr] || 0;
+
               return (
-                <div
+                <motion.div
                   key={dateStr}
-                  className={`w-4 h-4 rounded-sm ring ring-1 ring-white/10 ${getCellColor(
+                  className={`w-4 h-4 rounded-sm ring-1 ring-white/10 ${getCellColor(
                     count
-                  )} relative cursor-pointer`}
-                  onMouseEnter={() => setActiveTooltip(dateStr)}
-                  onMouseLeave={() => setActiveTooltip(null)}
+                  )} relative cursor-pointer hover:scale-[1.2] transition-transform`}
+                  variants={cellVariants}
+                  onMouseEnter={() => setActiveDate(dateStr)}
+                  onMouseLeave={() => setActiveDate(null)}
+                  onFocus={() => setActiveDate(dateStr)}
+                  onBlur={() => setActiveDate(null)}
                   tabIndex={0}
                   aria-label={`${count} contributions on ${format(
                     day,
-                    'EEEE, MMMM d, yyyy'
+                    "EEEE, MMMM d, yyyy"
                   )}`}
                 >
-                  {activeTooltip === dateStr && (
-                    <div className="absolute bottom-full mb-2 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white text-xs rounded py-1 px-2 z-100 whitespace-nowrap">
-                      <strong>
-                        {count} contribution{count !== 1 ? 's' : ''}
-                      </strong>
-                      <div>{format(day, 'EEEE, MMMM d, yyyy')}</div>
-                    </div>
+                  {/* If this cell is active/hovered, show the tooltip */}
+                  {activeDate === dateStr && (
+                    <Tooltip date={dateStr} count={count} />
                   )}
-                </div>
+                </motion.div>
               );
             })}
-          </div>
+          </motion.div>
         ))}
       </div>
-    </div>
+    </motion.div>
   );
 };

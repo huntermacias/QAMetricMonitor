@@ -33,3 +33,33 @@ export interface FeatureBugMetrics {
     state: string;
     tags: string;
   }
+
+
+  // Types used for Jenkins related stuff
+  export interface RelatedBug {
+    id: number;
+    title: string;
+    state: string;
+    url: string;
+    // Add other relevant fields as needed
+  }
+  
+  export interface BuildData {
+    jobName?: string;
+    fullDisplayName: string;
+    trimmedDisplayName: string;
+    timestamp: number;
+    number: number;
+    userName: string | null;
+    duration: number;
+    estimatedDuration: number;
+    result: string;  // e.g. "SUCCESS", "FAILED", "UNKNOWN", etc.
+    failCount: number;
+    totalCount: number;
+    skipCount: number;
+    failedTests: string[];
+    baselineFound?: boolean;
+    calculatedPassCount?: number;
+    teams: number[];
+    relatedBugs?: RelatedBug[];
+  }

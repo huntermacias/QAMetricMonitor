@@ -1,5 +1,5 @@
-import { FC } from 'react';
-import { parseISO, format, startOfWeek } from 'date-fns';
+import { FC } from "react";
+import { parseISO, format, startOfWeek } from "date-fns";
 
 type MonthsProps = {
   data: Record<string, number>;
@@ -10,12 +10,12 @@ export const Months: FC<MonthsProps> = ({ data }) => {
     .map((date) => parseISO(date))
     .sort((a, b) => a.getTime() - b.getTime());
 
-  // Group dates by week
+  // Group dates by week (Sunday -> Saturday)
   const weeks: Date[][] = [];
   let currentWeek: Date[] = [];
 
   sortedDates.forEach((date) => {
-    const weekStart = startOfWeek(date, { weekStartsOn: 0 }); // Sunday
+    const weekStart = startOfWeek(date, { weekStartsOn: 0 });
     const existingWeek = weeks.find(
       (week) => week[0].getTime() === weekStart.getTime()
     );
@@ -35,7 +35,7 @@ export const Months: FC<MonthsProps> = ({ data }) => {
   const monthLabels: { month: string; weekIndex: number }[] = [];
   weeks.forEach((week, index) => {
     const firstDay = week[0];
-    const month = format(firstDay, 'MMM');
+    const month = format(firstDay, "MMM");
     if (
       monthLabels.length === 0 ||
       monthLabels[monthLabels.length - 1].month !== month
@@ -44,16 +44,20 @@ export const Months: FC<MonthsProps> = ({ data }) => {
     }
   });
 
-  // Calculate dynamic spacing for month labels
-  const weekWidth = 15; // Width of each week column (adjust as needed)
+  // This controls how much horizontal space each week takes (adjust to your liking)
+  const WEEK_WIDTH = 15; 
+
   return (
-    <div className="absolute -top-8 left-0 flex mt-4 ga">
+    <div className="absolute -top-6  flex ">
       {monthLabels.map((label, index) => (
         <div
           key={index}
-          className="text-xs text-gray-500"
+          className="text-xs text-gray-400"
           style={{
-            marginLeft: index === 0 ? 0 : `${(label.weekIndex - monthLabels[index - 1].weekIndex) * weekWidth}px`,
+            marginLeft:
+              index === 0
+                ? 0
+                : `${(label.weekIndex - monthLabels[index - 1].weekIndex) * WEEK_WIDTH}px`,
           }}
         >
           {label.month}

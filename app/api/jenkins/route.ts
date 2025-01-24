@@ -1,302 +1,230 @@
-// app/api/jenkins/route.ts
+/*
+* app/api/jenkins/route.ts
+* This file contains the logic for fetching Jenkins build data and processing it into a more usable format.
+* Response Example: https://jenkins-auto.pacific.costcotravel.com/view/Automation%20Tests/view/Shopping/view/00%20-%20Weekly%20UI%20CRT/job/01_Shopping_UI_CRT_Consumer_Part1/api/json
+*/
+import { NextResponse } from "next/server";
+import axios from "axios";
+import https from "https";
 
-import { NextResponse } from 'next/server'
-import axios from 'axios'
-import https from 'https'
-
-export const runtime = 'nodejs'
-
-// Jenkins base URLs: can override in .env or .env.local
-const UI_BASE_URL =
-  process.env.JENKINS_BASE_URL_UI ||
-  'https://jenkins-auto.pacific.costcotravel.com/view/Automation%20Tests/view/Shopping/view/00%20-%20Weekly%20UI%20CRT'
-
-const API_BASE_URL =
-  process.env.JENKINS_BASE_URL_API ||
-  'https://jenkins-auto.pacific.costcotravel.com/view/Automation%20Tests/view/Shopping/view/00%20-%20Weekly%20Service%20API%20CRT'
-
-const jenkinsAuthToken =
-  process.env.JENKINS_AUTH_TOKEN ||
-  'cmV0aGkucGlsbGFpQGNvc3Rjb3RyYXZlbC5jb206U2hyaXlhU3JpcmFtJTI2'
+import { Action, BuildDataRaw, ProcessedBuildData } from "./types";
+import { config } from "./config";
 
 const headers = {
-  Authorization: `Basic ${jenkinsAuthToken}`,
-  'Content-Type': 'application/json',
-}
+  Authorization: `Basic ${config.TOKEN}`,
+  "Content-Type": "application/json",
+};
 
-// HTTPS agent (self-signed cert workaround)
+// Self-signed cert workaround if needed
 const httpsAgent = new https.Agent({
   rejectUnauthorized: false,
-})
+});
 
-// Add builds to this to fetch data from each build
-const jobList = [
-  '00_Shopping_UI_CRT_Agent_Tests', // Team 6 & 7
-  '01_Shopping_UI_CRT_Consumer_Part1', // Team 1 & 8
-  '02_Shopping_UI_CRT_Consumer_Part2', // Team 2 & 4
-  '03_Shopping_UI_CRT_Consumer_Part3', // Team 3 & 5
-  '03_Shopping_API_Service_Hotel_Search', // Team 3 & 5
-  '00_Shopping_API_APIConnect_Cruise', // Team 6 & 7
-  '00_Shopping_API_Service_Odysseus_Cruise', // Team 2 & 4
-  '01_Shopping_API_Service_Derby_Tickets', // Team 1 & 8
-];
-
-// Interfaces
-interface Cause {
-  _class: string
-  shortDescription?: string
-  userName?: string
-  userId?: string
-}
-
-interface Action {
-  _class: string
-  causes?: Cause[]
-  parameters?: Array<{ name: string; value: string | boolean }>
-  failCount?: number
-  skipCount?: number
-  totalCount?: number
-}
-
-interface ChangeSetPath {
-  editType: string
-  file: string
-}
-
-interface ChangeSet {
-  _class: string
-  affectedPaths: ChangeSetPath[]
-  commitId: string
-  timestamp: number
-  authorEmail: string
-  comment: string
-  date: string
-  id: string
-  msg: string
-  paths: ChangeSetPath[]
-}
-
-interface ChangeSetList {
-  _class: string
-  items: ChangeSet[]
-  kind: string
-}
-
-interface BuildDataRaw {
-  _class: string
-  actions: Action[]
-  artifacts: Array<{ displayPath: string; fileName: string; relativePath: string }>
-  building: boolean
-  description: string | null
-  displayName: string
-  duration: number
-  estimatedDuration: number
-  executor: string | null
-  fullDisplayName: string
-  id: string
-  inProgress: boolean
-  keepLog: boolean
-  number: number
-  queueId: number
-  result: string | null
-  timestamp: number
-  url: string
-  builtOn: string
-  changeSet: ChangeSetList
-}
-
-interface ProcessedBuildData {
-  jobName: string
-  fullDisplayName: string
-  trimmedDisplayName: string
-  timestamp: number
-  number: number
-  userName: string | null
-  duration: number
-  estimatedDuration: number
-  result: string | null
-  failCount: number
-  totalCount: number
-  skipCount: number
-  failedTests: string[]
-  calculatedPassCount: number | null
-  baselineFound: boolean
-  commits?: ChangeSet[] // If you want to store them
-}
 
 /**
- * Determine which base URL to use for a given job.
+ * Decide which base URL (UI vs. API) for a given job name.
  */
 function getBaseUrlForJob(jobName: string): string {
-  return jobName.includes('_API_') ? API_BASE_URL : UI_BASE_URL
+  return jobName.includes("_API_") ? config.API_BASE_URL : config.UI_BASE_URL;
 }
 
 /**
- * Extracts the username from hudson.model.CauseAction (if any).
+ * Extract userName from hudson.model.CauseAction.
  */
 function extractUsername(actions: Action[]): string | null {
-  const causeAction = actions.find((action) => action._class === 'hudson.model.CauseAction')
-  if (causeAction?.causes) {
-    const userCause = causeAction.causes.find((cause) => cause.userName)
-    return userCause ? userCause.userName! : null
-  }
-  return null
+  const causeAction = actions.find((a) => a._class === "hudson.model.CauseAction");
+  if (!causeAction?.causes) return null;
+  const userCause = causeAction.causes.find((c) => c.userName);
+  return userCause ? userCause.userName || null : null;
 }
 
 /**
- * Fetch the latest build number.
+ * Extract cause info (upstream build, shortDescription, etc.).
+ */
+function extractCauseInfo(actions: Action[]): ProcessedBuildData["cause"] {
+  const causeAction = actions.find((a) => a._class === "hudson.model.CauseAction");
+  if (!causeAction?.causes || causeAction.causes.length === 0) {
+    return {};
+  }
+  const c = causeAction.causes[0];
+  return {
+    shortDescription: c.shortDescription,
+    upstreamProject: c.upstreamProject,
+    upstreamBuild: c.upstreamBuild,
+    userName: c.userName ?? null,
+  };
+}
+
+/**
+ * Extract time in queue from jenkins.metrics.impl.TimeInQueueAction.
+ */
+function extractTimeInQueue(actions: Action[]): ProcessedBuildData["timeInQueue"] {
+  const queueAction = actions.find((a) => a._class === "jenkins.metrics.impl.TimeInQueueAction");
+  return {
+    blockedDurationMillis: queueAction?.blockedDurationMillis ?? 0,
+    buildableDurationMillis: queueAction?.buildableDurationMillis ?? 0,
+    waitingDurationMillis: queueAction?.waitingDurationMillis ?? 0,
+    executingTimeMillis: queueAction?.executingTimeMillis ?? 0,
+  };
+}
+
+/**
+ * Extract JUnit test results from hudson.tasks.junit.TestResultAction.
+ */
+function extractTestResults(actions: Action[]) {
+  const testAction = actions.find((a) => a._class === "hudson.tasks.junit.TestResultAction");
+  return {
+    failCount: testAction?.failCount ?? 0,
+    skipCount: testAction?.skipCount ?? 0,
+    totalCount: testAction?.totalCount ?? 0,
+  };
+}
+
+/**
+ * Extract all parameters from hudson.model.ParametersAction.
+ */
+function extractParameters(actions: Action[]): Record<string, string | boolean | number> {
+  const paramAction = actions.find((a) => a._class === "hudson.model.ParametersAction");
+  if (!paramAction?.parameters) return {};
+  const paramsObject: Record<string, string | boolean | number> = {};
+  paramAction.parameters.forEach((p) => {
+    paramsObject[p.name] = p.value;
+  });
+  return paramsObject;
+}
+
+/**
+ * Extract 'Failed_Tests' from parameters if present.
+ */
+function extractFailedTests(params: Record<string, string | boolean | number>): string[] {
+  const val = params["Failed_Tests"];
+  if (!val || typeof val !== "string") return [];
+  return val
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+/**
+ * Fetch the latest build number for a given job.
  */
 async function getLatestBuildNumber(jobName: string): Promise<number> {
-  try {
-    const baseUrl = getBaseUrlForJob(jobName)
-    const response = await axios.get<{ number: number }>(
-      `${baseUrl}/job/${encodeURIComponent(jobName)}/lastBuild/api/json`,
-      { headers, httpsAgent }
-    )
-
-    // If "lastBuild" is empty (e.g., no builds yet), you might get 404 or missing data
-    if (typeof response.data.number !== 'number') {
-      throw new Error(`Invalid or missing lastBuild number for job: ${jobName}`)
+  const baseUrl = getBaseUrlForJob(jobName);
+  const responseURL = `${baseUrl}/job/${encodeURIComponent(jobName)}/lastBuild/api/json`;
+  console.log("Fetching latest build number for:", responseURL);
+  const resp = await axios.get<{ number: number }>(
+    `${baseUrl}/job/${encodeURIComponent(jobName)}/lastBuild/api/json`,
+    {
+      headers,
+      httpsAgent,
     }
-
-    return response.data.number
-  } catch (error: any) {
-    console.error(`❌ Error fetching latest build number for job "${jobName}":`, error.message)
-    throw error
+  );
+  if (typeof resp.data.number !== "number") {
+    throw new Error(`No valid 'number' found for job: ${jobName}`);
   }
+  return resp.data.number;
 }
 
 /**
- * Fetch build data for a specific job and build number.
+ * Fetch data for a specific job + build number, returning a ProcessedBuildData object.
  */
 async function fetchBuildData(jobName: string, buildNumber: number): Promise<ProcessedBuildData> {
-  try {
-    const baseUrl = getBaseUrlForJob(jobName)
-    const response = await axios.get<BuildDataRaw>(
-      `${baseUrl}/job/${encodeURIComponent(jobName)}/${buildNumber}/api/json`,
-      { headers, httpsAgent }
-    )
-    const data = response.data
+  const baseUrl = getBaseUrlForJob(jobName);
+  const resp = await axios.get<BuildDataRaw>(
+    `${baseUrl}/job/${encodeURIComponent(jobName)}/${buildNumber}/api/json`,
+    { headers, httpsAgent }
+  );
+  const data = resp.data;
 
-    // Find relevant actions
-    const testResultAction = data.actions.find(
-      (action) => action._class === 'hudson.tasks.junit.TestResultAction'
-    )
-    const parametersAction = data.actions.find(
-      (action) => action._class === 'hudson.model.ParametersAction'
-    )
+  // Ensure result is never null for your BuildData interface
+  const result = data.result || "UNKNOWN";
 
-    // Extract failed tests from the 'Failed_Tests' parameter
-    let failedTests: string[] = []
-    if (parametersAction && Array.isArray(parametersAction.parameters)) {
-      const failedTestsParam = parametersAction.parameters.find(
-        (param) => param.name === 'Failed_Tests'
-      )
-      if (failedTestsParam && typeof failedTestsParam.value === 'string') {
-        failedTests = failedTestsParam.value.split(',').map((test) => test.trim())
-      }
-    }
+  const { failCount, skipCount, totalCount } = extractTestResults(data.actions);
+  const parameters = extractParameters(data.actions);
+  const failedTests = extractFailedTests(parameters);
+  const cause = extractCauseInfo(data.actions);
+  const timeInQueue = extractTimeInQueue(data.actions);
 
-    // Optionally parse the changeSet to capture commits
-    const commits = data.changeSet?.items || []
+  // Construct our final shape
+  const processed: ProcessedBuildData = {
+    fullDisplayName: data.fullDisplayName,
+    trimmedDisplayName: data.fullDisplayName.split("#")[0].trim(),
+    timestamp: data.timestamp,
+    number: data.number,
+    userName: extractUsername(data.actions),
+    duration: data.duration,
+    estimatedDuration: data.estimatedDuration,
+    result,
+    failCount,
+    totalCount,
+    skipCount,
+    failedTests,
+    jobName,
+    baselineFound: false,
+    calculatedPassCount: 0,
+    teams: [], // we'll fill or override in UI if needed
+    relatedBugs: [], // fill in UI if needed
+    commits: data.changeSet?.items || [],
+    culprits: data.culprits.map((c) => c.fullName),
+    artifacts: data.artifacts,
+    parameters,
+    cause,
+    timeInQueue,
+  };
 
-    return {
-      jobName,
-      fullDisplayName: data.fullDisplayName,
-      trimmedDisplayName: data.fullDisplayName.split('#')[0].trim(),
-      timestamp: data.timestamp,
-      number: data.number,
-      userName: extractUsername(data.actions),
-      duration: data.duration,
-      estimatedDuration: data.estimatedDuration,
-      result: data.result,
-      failCount: testResultAction?.failCount ?? 0,
-      totalCount: testResultAction?.totalCount ?? 0,
-      skipCount: testResultAction?.skipCount ?? 0,
-      failedTests,
-      calculatedPassCount: null, // Will be set later
-      baselineFound: false,
-      commits, // If you want to return commit details
-    }
-  } catch (error: any) {
-    console.error(
-      `❌ Error fetching build data for job "${jobName}", build #${buildNumber}:`,
-      error.message
-    )
-    throw error
-  }
+  return processed;
 }
 
 /**
- * Find the totalCount from the earliest "baseline" build (userName === null).
+ * Find the earliest "baseline" build (userName === null) to get totalCount reference.
  */
-async function getBaselineTotalCount(
-  jobName: string,
-  latestBuildNumber: number
-): Promise<number | null> {
-  try {
-    // If you'd like to limit how far back you go, define e.g.:
-    // const MIN_BUILD_NUMBER = Math.max(latestBuildNumber - 50, 1) // last 50 builds
-    for (let buildNum = latestBuildNumber; buildNum >= 1; buildNum--) {
-      const buildData = await fetchBuildData(jobName, buildNum)
-      if (buildData.userName === null) {
-        // Found baseline
-        return buildData.totalCount
-      }
+async function getBaselineTotalCount(jobName: string, latestBuildNumber: number): Promise<number | null> {
+  for (let buildNum = latestBuildNumber; buildNum >= 1; buildNum--) {
+    const build = await fetchBuildData(jobName, buildNum);
+    if (build.userName === null) {
+      return build.totalCount;
     }
-    return null
-  } catch (error: any) {
-    console.error(`❌ Error finding baseline for job "${jobName}":`, error.message)
-    return null
   }
+  return null;
 }
 
 /**
- * Process builds for all jobs in jobList.
+ * Gather build data for each job in jobList, from latest build down to baseline or #1.
  */
 async function processAllBuilds(): Promise<ProcessedBuildData[]> {
-  const allBuilds: ProcessedBuildData[] = []
+  const allBuilds: ProcessedBuildData[] = [];
 
-  // Process each job in parallel
   await Promise.all(
-    jobList.map(async (jobName) => {
+    config.jobList.map(async (jobName) => {
       try {
-        const latestBuildNumber = await getLatestBuildNumber(jobName)
-        const baselineTotalCount = await getBaselineTotalCount(jobName, latestBuildNumber)
+        const latestBuildNumber = await getLatestBuildNumber(jobName);
+        const baselineTotalCount = await getBaselineTotalCount(jobName, latestBuildNumber);
 
-        // Iterate from latest build down to #1
-        for (let buildNum = latestBuildNumber; buildNum >= 1; buildNum--) {
-          const buildData = await fetchBuildData(jobName, buildNum)
+        for (let num = latestBuildNumber; num >= 1; num--) {
+          const buildData = await fetchBuildData(jobName, num);
 
           if (buildData.userName === null) {
-            // Baseline build
-            buildData.calculatedPassCount = buildData.totalCount - buildData.failCount
-            buildData.baselineFound = true
-            allBuilds.push(buildData)
-            break
+            buildData.calculatedPassCount = buildData.totalCount - buildData.failCount;
+            buildData.baselineFound = true;
+            allBuilds.push(buildData);
+            // break; // Uncomment to stop at the first baseline build
           } else {
-            // Non-baseline build
+            // Non-baseline
             if (baselineTotalCount !== null) {
-              // Use the baseline total count as the reference for pass/fail
-              buildData.calculatedPassCount = baselineTotalCount - buildData.failCount
-              buildData.baselineFound = true
-            } else {
-              buildData.calculatedPassCount = null
-              buildData.baselineFound = false
+              buildData.calculatedPassCount = baselineTotalCount - buildData.failCount;
+              buildData.baselineFound = true;
             }
-            allBuilds.push(buildData)
+            allBuilds.push(buildData);
           }
         }
-
-        console.log(`✅ Successfully processed job "${jobName}".`)
-      } catch (error: any) {
-        console.error(`❌ Error processing job "${jobName}":`, error.message)
+      } catch (err: any) {
+        console.error(`❌ Error processing "${jobName}":`, err.message);
       }
     })
-  )
+  );
 
-  console.log('🎉 All builds processed successfully.')
-  return allBuilds
+  console.log("✅ Completed processing all Jenkins jobs.");
+  return allBuilds;
 }
 
 /**
@@ -304,10 +232,10 @@ async function processAllBuilds(): Promise<ProcessedBuildData[]> {
  */
 export async function GET() {
   try {
-    const buildData = await processAllBuilds()
-    return NextResponse.json(buildData, { status: 200 })
+    const buildData = await processAllBuilds();
+    return NextResponse.json(buildData, { status: 200 });
   } catch (error: any) {
-    console.error('❌ Error in API route:', error.message)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    console.error("❌ Error in Jenkins API route:", error.message);
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

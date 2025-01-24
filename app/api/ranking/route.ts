@@ -1,5 +1,43 @@
-// app/api/ranking/route.ts
-// url exampple:   const url = `https://${instance}/tfs/${collection}/_apis/teams?api-version=4.1-preview.2`;
+/**
+ * file route: app/api/ranking/route.ts
+ * api endpoint structure: https://${instance}/tfs/${collection}/_apis/teams?api-version=4.1-preview.2
+ * live endpoint example: https://tfs.pacific.costcotravel.com/tfs/TestAutomation/_apis/teams?api-version=4.1-preview.2
+ * example response: 
+ * {
+ *    value: [
+ *        {
+            "id": "5191c4ff-b34e-414d-9ef5-ee26cc01ffe2",
+            "name": "Shopping portfolio",
+            "url": "https://tfs.pacific.costcotravel.com/tfs/TestAutomation/_apis/projects/baac0adf-5cc1-40ae-a92f-c9adc45fd198/teams/5191c4ff-b34e-414d-9ef5-ee26cc01ffe2",
+            "description": "",
+            "identityUrl": "https://tfs.pacific.costcotravel.com/tfs/TestAutomation/_apis/Identities/5191c4ff-b34e-414d-9ef5-ee26cc01ffe2",
+            "projectName": "Git_repo",
+            "projectId": "baac0adf-5cc1-40ae-a92f-c9adc45fd198"
+          },
+ *    ]
+ * }
+ * 
+ * 
+ * baac0adf-5cc1-40ae-a92f-c9adc45fd198
+ * https://tfs.pacific.costcotravel.com/tfs/CostcoTravel/_apis/projects/e8919900-3758-4a80-9a38-4391f5210aca/properties?api-version=4.1-preview.2
+ * GET ALL PROJECTS:
+ * live endpoint example: https://tfs.pacific.costcotravel.com/tfs/CostcoTravel/_apis/projects?api-version=4.1-preview.2
+ * example response: 
+ * {
+ *    count: number, 
+ *    value: [
+ *      {
+          "id": "e8919900-3758-4a80-9a38-4391f5210aca",
+          "name": "Work Items",
+          "url": "https://tfs.pacific.costcotravel.com/tfs/CostcoTravel/_apis/projects/e8919900-3758-4a80-9a38-4391f5210aca",
+          "state": "wellFormed",
+          "revision": 5689263,
+          "visibility": "private"
+        },
+ *   ]
+ * }
+ * 
+ */
 
 import { NextResponse } from 'next/server';
 import axios from 'axios';
@@ -78,20 +116,17 @@ type TeamMember = {
 const fetchAllTeams = async (): Promise<Team[]> => {
   const instance = 'tfs.pacific.costcotravel.com';
   const collection = 'TestAutomation';
-  const pat = 'aHVudGVyLnJvY2hhQGNvc3Rjb3RyYXZlbC5jb206bnhmenF5Z2R1em5sdHl1c3h1NjdrbGNsZW4zb3c1emVpbGhpeHZra3BqNGc3bmtpY3p0cQ==';
-  
+  const pat = process.env.TFS_AUTH_TOKEN;
   if (!instance || !collection || !pat) {
     throw new Error('Missing TFS_INSTANCE, TFS_COLLECTION, or TFS_PAT in environment variables.');
   }
 
-  const encodedPAT = Buffer.from(`:${pat}`).toString('base64');
-
   const url = `https://${instance}/tfs/${collection}/_apis/teams?api-version=4.1-preview.2`;
-
+  console.log('fetchAllTeams url:', url);
   try {
     const response = await axios.get(url, {
       headers: {
-        'Authorization': `Basic ${encodedPAT}`,
+        'Authorization': `Basic ${pat}`,
         'Content-Type': 'application/json',
       },
       httpsAgent: new https.Agent({
@@ -110,20 +145,19 @@ const fetchAllTeams = async (): Promise<Team[]> => {
 const fetchTeamMembers = async (projectId: string, teamId: string): Promise<TeamMember[]> => {
   const instance = 'tfs.pacific.costcotravel.com';
   const collection = 'TestAutomation';
-  const pat = 'aHVudGVyLnJvY2hhQGNvc3Rjb3RyYXZlbC5jb206bnhmenF5Z2R1em5sdHl1c3h1NjdrbGNsZW4zb3c1emVpbGhpeHZra3BqNGc3bmtpY3p0cQ==';
+  const pat = process.env.TFS_AUTH_TOKEN;
 
   if (!instance || !collection || !pat) {
     throw new Error('Missing TFS_INSTANCE, TFS_COLLECTION, or TFS_PAT in environment variables.' + instance + collection + pat);
   }
 
-  const encodedPAT = Buffer.from(`:${pat}`).toString('base64');
 
   const url = `https://${instance}/tfs/${collection}/_apis/projects/${projectId}/teams/${teamId}/members?api-version=4.1`;
-
+  console.log("fetchTeamMembers url:", url);
   try {
     const response = await axios.get(url, {
       headers: {
-        'Authorization': `Basic ${encodedPAT}`,
+        'Authorization': `Basic ${pat}`,
         'Content-Type': 'application/json',
       },
       httpsAgent: new https.Agent({
@@ -207,9 +241,7 @@ export async function GET() {
     QA: 'https://tfs.pacific.costcotravel.com/tfs/TestAutomation', // QA/SDET
     DEV: 'https://tfs.pacific.costcotravel.com/tfs/CostcoTravel', // DEV
   };
-  const authToken =
-    process.env.TFS_AUTH_TOKEN ||
-    'cmV0aGkucGlsbGFpQGNvc3Rjb3RyYXZlbC5jb206dnJsdXJiYnZza3RhZWdtdnlhang1eHU3ZjZuc29sY3R2dWs2bXc1dmd4eTQ3dXpya3J5cQ==';
+  const authToken = process.env.TFS_AUTH_TOKEN 
 
   console.log('TFS Auth Token Present:', authToken ? 'Yes' : 'No');
 
@@ -233,7 +265,7 @@ export async function GET() {
     creatorId: string
   ) => {
     const pullRequestsUrl = `${baseUrl}/_apis/git/repositories/${repoId}/pullrequests?creatorId=${creatorId}&status=completed&api-version=4.1`;
-
+    console.log("fetchPullRequestsByRepoAndCreator url:", pullRequestsUrl);
     try {
       const response = await axios.get(pullRequestsUrl, {
         headers,
@@ -271,7 +303,6 @@ export async function GET() {
       consumer: 'e4ac12a4-c640-4637-9843-83b66e2f5e7c', // DEV
     };
 
-    const last12Months = getLast12Months(); // Get the last 12 months
     const twelveMonthsAgo = new Date();
     twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 11); // Include current month
 
@@ -295,11 +326,7 @@ export async function GET() {
       }
 
       for (const [name, creatorId] of Object.entries(creatorIds)) {
-        const pullRequests = await fetchPullRequestsByRepoAndCreator(
-          baseUrl,
-          repoId,
-          creatorId
-        );
+        const pullRequests = await fetchPullRequestsByRepoAndCreator(baseUrl, repoId, creatorId);
 
         // Filter PRs closed within the last 12 months
         const filteredPullRequests = pullRequests.filter((pr: any) => {
@@ -370,6 +397,14 @@ export async function GET() {
             (metrics[name].commitsByDate[commitDate] || 0) + 1;
         });
 
+        // count PRs for each creator
+        const creatorPRCount = filteredPullRequests.reduce((acc: Record<string, number>, pr: any) => {
+          const creator = pr.createdBy?.displayName;
+          if (creator) {
+            acc[creator] = (acc[creator] || 0) + 1;
+          }
+          return acc;
+        }, {});
         // Update metrics
         metrics[name].totalPRs += filteredPullRequests.length;
 

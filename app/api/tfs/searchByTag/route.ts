@@ -1,9 +1,8 @@
-// app/api/tfs/route.ts
+// app/api/tfs/searchByTag/route.ts
 
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import axios from 'axios'
 import https from 'https'
-
 
 interface SystemFields {
   Id: number
@@ -30,7 +29,6 @@ interface SystemFields {
 interface MicrosoftVSTSCommonFields {
   ClosedDate?: string
 }
-
 
 interface MicrosoftVSTSCommonSchedulingFields {
   Effort?: number
@@ -60,7 +58,7 @@ interface WorkItem {
 }
 
 // ---------------------------------------------
-// 2) Helper to parse "Hunter Macias <PACIFIC\\hunter.macias>" => "Hunter Macias"
+// 1) Helper to parse "Hunter Macias <PACIFIC\\hunter.macias>" => "Hunter Macias"
 // ---------------------------------------------
 function extractDisplayName(displayName: string): string {
   if (typeof displayName !== 'string') return 'Unassigned'
@@ -69,9 +67,12 @@ function extractDisplayName(displayName: string): string {
 }
 
 // ---------------------------------------------
-// 3) GET Handler
+// 2) GET Handler
 // ---------------------------------------------
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const { searchParams } = new URL(request.url)
+  const tag = searchParams.get('tag') || '#FoundByShoppingCRT' // Default tag
+console.log('tag', tag)
   const tfsBaseUrl =
     process.env.TFS_BASE_URL ||
     'https://tfs.pacific.costcotravel.com/tfs/CostcoTravel'
@@ -79,6 +80,7 @@ export async function GET() {
 
   console.log('TFS Base URL:', tfsBaseUrl)
   console.log('TFS Auth Token Present:', authToken ? 'Yes' : 'No')
+  console.log('Searching for Tag:', tag)
 
   if (!authToken) {
     return NextResponse.json({ error: 'TFS_AUTH_TOKEN is not set.' }, { status: 500 })
@@ -94,14 +96,21 @@ export async function GET() {
   }
 
   const wiqlUrl = `${tfsBaseUrl}/_apis/wit/wiql?api-version=2.0`
+  
+  // Sanitize the tag to prevent WIQL injection
+  const sanitizedTag = tag.replace(/'/g, "''") // Escape single quotes by doubling them
+
+
+  // update tag to use sanitized tag. example usage: http://localhost:3000/api/tfs/searchByTag?tag=lowerEnv
   const query = {
     query: `
       SELECT [System.Id]
       FROM WorkItems
-      WHERE [System.WorkItemType] IN ('Feature', 'User Story', 'Bug', 'Task', 'Test Case', 'Automation', 'NonRelease') 
-        AND [System.State] IN ('Done', 'In Progress', 'Committed', 'New', 'Active', 'Approved', 'Accepted') 
+      WHERE [System.WorkItemType] <> ''
+        AND [System.State] IN ('Done', 'In Progress', 'Committed', 'New', 'Active') 
         AND [CostcoTravel.Team] CONTAINS 'Shopping Team' 
-        AND [System.CreatedDate] > '2024-01-01'
+        AND [System.Tags] CONTAINS '#FoundByShoppingCRT'
+
       ORDER BY [System.ChangedDate] DESC
     `,
   }
@@ -126,7 +135,7 @@ export async function GET() {
         const detailUrl = `${tfsBaseUrl}/_apis/wit/workitems/${item.id}?$expand=All&api-version=1.0`
 
         try {
-          const detailResponse = await axios.get(detailUrl, { headers, httpsAgent } )
+          const detailResponse = await axios.get(detailUrl, { headers, httpsAgent })
           const fields = detailResponse.data.fields
           console.log('fields', detailResponse.data.relations); 
           // Construct the final WorkItem object
@@ -178,6 +187,7 @@ export async function GET() {
           return finalItem
         } catch (error: any) {
           // Log or ignore the error for this item
+          console.error(`Error fetching details for WorkItem ID ${item.id}:`, error.message)
           return null
         }
       }
